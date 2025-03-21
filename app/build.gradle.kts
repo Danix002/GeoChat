@@ -1,8 +1,17 @@
+import io.gitlab.arturbosch.detekt.Detekt
+
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.collektive)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.collektive)
+    alias(libs.plugins.kotlin.qa)
+    alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.taskTree)
+}
+
+tasks.withType<Detekt>().configureEach {
+    exclude("**/ui/theme/**")
 }
 
 android {
@@ -11,7 +20,7 @@ android {
 
     defaultConfig {
         applicationId = "it.unibo.collektive"
-        minSdk = 28
+        minSdk = 30
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -19,12 +28,18 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    packaging {
+        resources.excludes += "META-INF/*.md"
+        resources.excludes += "META-INF/INDEX.LIST"
+        resources.excludes += "META-INF/io.netty.versions.properties"
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }

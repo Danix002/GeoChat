@@ -1,14 +1,14 @@
 [versions]
 agp = "8.9.0"
-kotlin = "2.0.21"
+kotlin = "2.1.20"
 collektive = "17.0.2"
-coreKtx = "1.10.1"
+coreKtx = "1.15.0"
 junit = "4.13.2"
-junitVersion = "1.1.5"
-espressoCore = "3.5.1"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
 lifecycleRuntimeKtx = "2.8.7"
 activityCompose = "1.10.1"
-composeBom = "2024.09.00"
+composeBom = "2025.03.00"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -27,13 +27,17 @@ androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 collektive = { module = "it.unibo.collektive:dsl", version.ref = "collektive" }
 collektive-stdlib = { module = "it.unibo.collektive:stdlib", version.ref = "collektive" }
+collektive-plugin = { module = "it.unibo.collektive:compiler-plugin", version.ref = "collektive" }
 
 [bundles]
-collektive = [ "collektive", "collektive-stdlib" ]
+collektive = [ "collektive", "collektive-stdlib", "collektive-plugin" ]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 collektive = { id = "it.unibo.collektive.collektive-plugin", version.ref = "collektive" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-qa = "org.danilopianini.gradle-kotlin-qa:0.78.0"
+kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+taskTree = "com.dorongold.task-tree:4.0.1"
 

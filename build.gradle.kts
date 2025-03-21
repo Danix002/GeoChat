@@ -4,4 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.collektive) apply false
+    alias(libs.plugins.kotlin.qa) apply false
+    alias(libs.plugins.kotlinx.serialization) apply false
+    alias(libs.plugins.taskTree) apply false
 }
