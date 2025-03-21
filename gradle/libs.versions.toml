@@ -1,6 +1,7 @@
 [versions]
 agp = "8.9.0"
 kotlin = "2.0.21"
+collektive = "17.0.2"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -24,9 +25,15 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+collektive = { module = "it.unibo.collektive:dsl", version.ref = "collektive" }
+collektive-stdlib = { module = "it.unibo.collektive:stdlib", version.ref = "collektive" }
+
+[bundles]
+collektive = [ "collektive", "collektive-stdlib" ]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+collektive = { id = "it.unibo.collektive.collektive-plugin", version.ref = "collektive" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 
