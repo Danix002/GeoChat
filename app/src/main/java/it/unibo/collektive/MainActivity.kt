@@ -1,4 +1,5 @@
 @file:Suppress("FunctionNaming")
+
 package it.unibo.collektive
 
 import android.os.Bundle
@@ -34,17 +35,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * A composable function that displays a greeting.
+ */
 @Composable
-fun Greeting(
-    name: String,
-    modifier: Modifier = Modifier,
-) {
+fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
         text = "Hello $name!",
         modifier = modifier,
     )
 }
 
+/**
+ * Preview the greeting composable.
+ */
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
