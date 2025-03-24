@@ -23,21 +23,18 @@ import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.encodeToString
 import kotlin.time.Duration
 
-
 abstract class AbstractSerializerMailbox<ID : Any>(
     private val deviceId: ID,
     private val serializer: SerialFormat,
     private val retentionTime: Duration,
 ) : Mailbox<ID> {
-    protected data class TimedMessage<ID : Any>(
-        val message: Message<ID, Any?>,
-        val timestamp: Instant,
-    )
+    protected data class TimedMessage<ID : Any>(val message: Message<ID, Any?>, val timestamp: Instant)
+    protected data class TimedHeartbeat<ID : Any>(val deviceId: ID, val timestamp: Instant)
 
     protected var messages = mutableMapOf<ID, TimedMessage<ID>>()
+    protected val neighbors = mutableSetOf<TimedHeartbeat<ID>>()
     private val factory = object : SerializedMessageFactory<ID, Any?>(serializer) {}
     private val neighborMessageFlow = MutableSharedFlow<Message<ID, Any?>>()
-    private val neighbors = mutableSetOf<ID>()
 
     /**
      * Typically, a network-based mailbox provides a way to gracefully close the connection.
@@ -53,17 +50,17 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     /**
      * Add the [deviceId] to the list of neighbors.
      */
-    fun addNeighbor(deviceId: ID) = neighbors.add(deviceId)
+    fun addNeighbor(deviceId: ID) = neighbors.add(TimedHeartbeat(deviceId, Clock.System.now()))
 
     /**
      * Remove the [deviceId] from the list of neighbors.
      */
-    fun removeNeighbor(deviceId: ID) = neighbors.remove(deviceId)
+    fun removeNeighbor(deviceId: ID) = neighbors.removeIf { it.deviceId == deviceId }
 
     /**
      * Returns the list of neighbors.
      */
-    fun neighbors(): Set<ID> = neighbors
+    fun neighbors(): Set<ID> = neighbors.map { it.deviceId }.toSet()
 
     /**
      * Returns an asynchronous flow of messages received from neighbors.
@@ -74,7 +71,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
         get() = false
 
     final override fun deliverableFor(outboundMessage: OutboundEnvelope<ID>) {
-        for (neighbor in neighbors - deviceId) {
+        for (neighbor in neighbors() - deviceId) {
             val message = outboundMessage.prepareMessageFor(neighbor, factory)
             onDeliverableReceived(neighbor, message)
         }
@@ -98,10 +95,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
 
         override val neighbors: Set<ID> get() = messages.keys
 
-        override fun <Value> dataAt(
-            path: Path,
-            dataSharingMethod: DataSharingMethod<Value>,
-        ): Map<ID, Value> {
+        override fun <Value> dataAt(path: Path, dataSharingMethod: DataSharingMethod<Value>): Map<ID, Value> {
             require(dataSharingMethod is Serialize<Value>) {
                 "Serialization has been required for in-memory messages. This is likely a misconfiguration."
             }
