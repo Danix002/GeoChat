@@ -50,7 +50,10 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     /**
      * Add the [deviceId] to the list of neighbors.
      */
-    fun addNeighbor(deviceId: ID) = neighbors.add(TimedHeartbeat(deviceId, Clock.System.now()))
+    fun addNeighbor(deviceId: ID) {
+        neighbors.removeIf { it.deviceId == deviceId }
+        neighbors.add(TimedHeartbeat(deviceId, Clock.System.now()))
+    }
 
     /**
      * Remove the [deviceId] from the list of neighbors.

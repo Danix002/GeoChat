@@ -1,6 +1,6 @@
 package it.unibo.collektive.network.mqtt
 
-import io.github.oshai.kotlinlogging.KotlinLogging
+import android.util.Log
 import it.nicolasfarabegoli.mktt.MkttClient
 import it.nicolasfarabegoli.mktt.MqttQoS
 import it.unibo.collektive.network.AbstractSerializerMailbox
@@ -16,29 +16,30 @@ import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
+@OptIn(ExperimentalUuidApi::class)
 class MqttMailbox private constructor(
-    private val deviceId: UUID,
+    private val deviceId: Uuid,
     host: String,
     port: Int,
     private val serializer: SerialFormat,
     private val retentionTime: Duration,
     private val dispatcher: CoroutineDispatcher,
-) : AbstractSerializerMailbox<UUID>(deviceId, serializer, retentionTime) {
+) : AbstractSerializerMailbox<Uuid>(deviceId, serializer, retentionTime) {
     private val internalScope = CoroutineScope(dispatcher)
     private val mqttClient = MkttClient(dispatcher) {
         brokerUrl = host
         this.port = port
     }
-    private val logger = KotlinLogging.logger("${MqttMailbox::class.simpleName!!}@$deviceId")
 
     private suspend fun initializeMqttClient() {
-        logger.info { "Connecting to the broker..." }
+        Log.i("MqttMailbox", "Connecting to the broker...")
         mqttClient.connect()
-        logger.info { "Connection succeeded" }
+        Log.i("MqttMailbox", "Connected to the broker")
         internalScope.launch(dispatcher) { receiveHeartbeatPulse() }
         internalScope.launch(dispatcher) { sendHeartbeatPulse() }
         internalScope.launch { cleanHeartbeatPulse() }
@@ -53,30 +54,31 @@ class MqttMailbox private constructor(
 
     private suspend fun receiveHeartbeatPulse() {
         mqttClient.subscribe(HEARTBEAT_WILD_CARD).collect {
-            logger.info { "Received heartbeat pulse from $deviceId" }
-            val deviceId = UUID.fromString(it.topic.split("/").last())
-            addNeighbor(deviceId)
+            val neighborDeviceId = Uuid.parse(it.topic.split("/").last())
+            Log.i("MqttMailbox", "Received heartbeat pulse from $neighborDeviceId")
+            addNeighbor(neighborDeviceId)
         }
     }
 
     private suspend fun cleanHeartbeatPulse() {
-        val toRemove = neighbors.filter { it.timestamp < Clock.System.now() - retentionTime }
+        val toRemove = neighbors.filter { Clock.System.now() - retentionTime > it.timestamp }
         for (neighbor in toRemove) {
             neighbors.remove(neighbor)
-            logger.info { "Neighbor $neighbor has been removed" }
+            Log.i("MqttMailbox", "Neighbor $neighbor has been removed")
         }
         delay(retentionTime)
         cleanHeartbeatPulse()
     }
 
     private suspend fun receiveNeighborMessages() {
-        mqttClient.subscribe(heartbeatTopic(deviceId)).collect {
+        mqttClient.subscribe(deviceTopic(deviceId)).collect {
+            Log.i("MqttMailbox", "Received message from ${it.topic}")
             try {
-                val deserialized = serializer.decodeSerialMessage<UUID>(it.payload)
-                logger.debug { "Received message from ${deserialized.senderId}" }
+                val deserialized = serializer.decodeSerialMessage<Uuid>(it.payload)
+                Log.d("MqttMailbox", "Received message from ${deserialized.senderId}")
                 deliverableReceived(deserialized)
             } catch (exception: SerializationException) {
-                logger.error { "Failed to deserialize message from ${it.topic}: ${exception.message}" }
+                Log.e("MqttMailbox", "Failed to deserialize message from ${it.topic}: ${exception.message}")
             }
         }
     }
@@ -84,11 +86,12 @@ class MqttMailbox private constructor(
     override suspend fun close() {
         internalScope.cancel()
         mqttClient.disconnect()
-        logger.info { "Disconnected from the broker" }
+        Log.i("MqttMailbox", "Disconnected from the broker")
     }
 
-    override fun onDeliverableReceived(receiverId: UUID, message: Message<UUID, Any?>) {
-        require(message is SerializedMessage<UUID>)
+    override fun onDeliverableReceived(receiverId: Uuid, message: Message<Uuid, Any?>) {
+        require(message is SerializedMessage<Uuid>)
+        Log.i("MqttMailbox", "Sending message to $receiverId from $deviceId")
         internalScope.launch(dispatcher) {
             mqttClient.publish(
                 topic = deviceTopic(receiverId),
@@ -100,7 +103,7 @@ class MqttMailbox private constructor(
 
     companion object {
         suspend operator fun invoke(
-            deviceId: UUID,
+            deviceId: Uuid,
             host: String,
             port: Int = 1883,
             serializer: SerialFormat = Json,
@@ -114,7 +117,7 @@ class MqttMailbox private constructor(
 
         private const val APP_NAMESPACE = "CollektiveExampleAndroid"
         private const val HEARTBEAT_WILD_CARD = "$APP_NAMESPACE/heartbeat/+"
-        private fun deviceTopic(deviceId: UUID) = "$APP_NAMESPACE/device/$deviceId"
-        private fun heartbeatTopic(deviceId: UUID) = "$APP_NAMESPACE/heartbeat/$deviceId"
+        private fun deviceTopic(deviceId: Uuid) = "$APP_NAMESPACE/device/$deviceId"
+        private fun heartbeatTopic(deviceId: Uuid) = "$APP_NAMESPACE/heartbeat/$deviceId"
     }
 }
