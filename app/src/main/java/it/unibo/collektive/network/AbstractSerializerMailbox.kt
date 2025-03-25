@@ -9,7 +9,6 @@ import it.unibo.collektive.networking.OutboundEnvelope
 import it.unibo.collektive.networking.SerializedMessage
 import it.unibo.collektive.networking.SerializedMessageFactory
 import it.unibo.collektive.path.Path
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
