@@ -18,10 +18,11 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-@OptIn(ExperimentalUuidApi::class)
+/**
+ * A mailbox that uses MQTT as the underlying transport.
+ */
 class MqttMailbox private constructor(
     private val deviceId: Uuid,
     host: String,
@@ -101,7 +102,13 @@ class MqttMailbox private constructor(
         }
     }
 
+    /**
+     * Companion object to create a new instance of [MqttMailbox].
+     */
     companion object {
+        /**
+         * Create a new instance of [MqttMailbox].
+         */
         suspend operator fun invoke(
             deviceId: Uuid,
             host: String,

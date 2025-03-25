@@ -23,6 +23,9 @@ import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.encodeToString
 import kotlin.time.Duration
 
+/**
+ * An abstract mailbox that serializes messages before sending them to the network.
+ */
 abstract class AbstractSerializerMailbox<ID : Any>(
     private val deviceId: ID,
     private val serializer: SerialFormat,
@@ -31,7 +34,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     protected data class TimedMessage<ID : Any>(val message: Message<ID, Any?>, val timestamp: Instant)
     protected data class TimedHeartbeat<ID : Any>(val deviceId: ID, val timestamp: Instant)
 
-    protected var messages = mutableMapOf<ID, TimedMessage<ID>>()
+    protected val messages = mutableMapOf<ID, TimedMessage<ID>>()
     protected val neighbors = mutableSetOf<TimedHeartbeat<ID>>()
     private val factory = object : SerializedMessageFactory<ID, Any?>(serializer) {}
     private val neighborMessageFlow = MutableSharedFlow<Message<ID, Any?>>()
@@ -118,19 +121,31 @@ abstract class AbstractSerializerMailbox<ID : Any>(
 
     private object NoValue
 
+    /**
+     * A helper method to serialize and deserialize messages.
+     */
     companion object {
+        /**
+         * Decode a [value] from a [ByteArray] using the [kSerializer].
+         */
         fun <Value> SerialFormat.decode(kSerializer: KSerializer<Value>, value: ByteArray): Value = when (this) {
             is StringFormat -> decodeFromString(kSerializer, value.decodeToString())
             is BinaryFormat -> decodeFromByteArray(kSerializer, value)
             else -> error("Unsupported format: $this")
         }
 
+        /**
+         * Encode a [value] to a [ByteArray] using the [kSerializer].
+         */
         fun <Value> SerialFormat.encode(kSerializer: KSerializer<Value>, value: Value): ByteArray = when (this) {
             is StringFormat -> encodeToString(kSerializer, value).encodeToByteArray()
             is BinaryFormat -> encodeToByteArray(kSerializer, value)
             else -> error("Unsupported format: $this")
         }
 
+        /**
+         * Decode a [value] from a [ByteArray].
+         */
         inline fun <reified ID : Any> SerialFormat.decodeSerialMessage(value: ByteArray): SerializedMessage<ID> =
             when (this) {
                 is StringFormat -> decodeFromString(value.decodeToString())
@@ -138,6 +153,9 @@ abstract class AbstractSerializerMailbox<ID : Any>(
                 else -> error("Unsupported format: $this")
             }
 
+        /**
+         * Encode a [value] to a [ByteArray].
+         */
         inline fun <reified ID : Any> SerialFormat.encodeSerialMessage(value: SerializedMessage<ID>): ByteArray =
             when (this) {
                 is StringFormat -> encodeToString(value).encodeToByteArray()
