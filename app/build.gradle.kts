@@ -50,6 +50,10 @@ android {
 
     kotlinOptions {
         jvmTarget = "11"
+        compileOptions {
+            allWarningsAsErrors = true
+            freeCompilerArgs += listOf("-opt-in=kotlin.uuid.ExperimentalUuidApi")
+        }
     }
     buildFeatures {
         compose = true
