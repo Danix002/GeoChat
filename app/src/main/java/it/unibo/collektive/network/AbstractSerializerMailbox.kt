@@ -34,8 +34,8 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     protected data class TimedMessage<ID : Any>(val message: Message<ID, Any?>, val timestamp: Instant)
     protected data class TimedHeartbeat<ID : Any>(val deviceId: ID, val timestamp: Instant)
 
-    protected val messages = mutableMapOf<ID, TimedMessage<ID>>()
-    protected val neighbors = mutableSetOf<TimedHeartbeat<ID>>()
+    private val messages = mutableMapOf<ID, TimedMessage<ID>>()
+    private val neighbors = mutableSetOf<TimedHeartbeat<ID>>()
     private val factory = object : SerializedMessageFactory<ID, Any?>(serializer) {}
     private val neighborMessageFlow = MutableSharedFlow<Message<ID, Any?>>()
 
@@ -59,19 +59,17 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     }
 
     /**
-     * Remove the [deviceId] from the list of neighbors.
+     * Remove neighbors that have not sent a heartbeat in a while.
      */
-    fun removeNeighbor(deviceId: ID) = neighbors.removeIf { it.deviceId == deviceId }
+    fun cleanupNeighbors(neighborRetention: Duration) {
+        val nowInstant = Clock.System.now()
+        neighbors.removeIf { nowInstant - it.timestamp > neighborRetention }
+    }
 
     /**
      * Returns the list of neighbors.
      */
     fun neighbors(): Set<ID> = neighbors.map { it.deviceId }.toSet()
-
-    /**
-     * Returns an asynchronous flow of messages received from neighbors.
-     */
-    fun neighborsMessageFlow(): Flow<Message<ID, Any?>> = neighborMessageFlow
 
     final override val inMemory: Boolean
         get() = false

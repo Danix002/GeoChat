@@ -62,11 +62,7 @@ class MqttMailbox private constructor(
     }
 
     private suspend fun cleanHeartbeatPulse() {
-        val toRemove = neighbors.filter { Clock.System.now() - retentionTime > it.timestamp }
-        for (neighbor in toRemove) {
-            neighbors.remove(neighbor)
-            Log.i("MqttMailbox", "Neighbor $neighbor has been removed")
-        }
+        cleanupNeighbors(retentionTime)
         delay(retentionTime)
         cleanHeartbeatPulse()
     }
