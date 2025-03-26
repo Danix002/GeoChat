@@ -17,15 +17,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.sp
+import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 
-@Preview
 @Composable
-fun RangeSliderBox() {
+fun RangeSliderBox(communicationSettingViewModel: CommunicationSettingViewModel) {
     var time by remember { mutableFloatStateOf(5f) }
     var distance by remember { mutableFloatStateOf(2000f) }
 
@@ -55,7 +54,7 @@ fun RangeSliderBox() {
             )
             Text(text = "1 min")
         }
-        Text(text = formatTime(time), textAlign = TextAlign.Center)
+        Text(text = communicationSettingViewModel.formatTime(time), textAlign = TextAlign.Center)
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -79,28 +78,6 @@ fun RangeSliderBox() {
             )
             Text(text = "10 km")
         }
-        Text(text = formatDistance(distance), textAlign = TextAlign.Center)
-    }
-}
-
-/**
- * Function to format distance in meters or kilometers.
- */
-fun formatDistance(value: Float): String {
-    return if (value >= 1000) {
-        "${(value / 1000).toInt()} km"
-    } else {
-        "${value.toInt()} mt"
-    }
-}
-
-/**
- * Function to format time in seconds or minutes.
- */
-fun formatTime(value: Float): String {
-    return if (value.toInt() == 60) {
-        "${(value / 60).toInt()} min"
-    } else {
-        "${value.toInt()} sc"
+        Text(text = communicationSettingViewModel.formatDistance(distance), textAlign = TextAlign.Center)
     }
 }
