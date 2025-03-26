@@ -31,7 +31,7 @@ class CommunicationSettingViewModel {
     }
 
     /**
-     * Function to set time value.
+     * Function to set distance value.
      */
     fun setDistance(value: Float) {
 
