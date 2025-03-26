@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.sp
 import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
@@ -39,10 +38,10 @@ fun RangeSliderBox(communicationSettingViewModel: CommunicationSettingViewModel)
             Box(modifier = Modifier.width(50.dp)){
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(text = "for", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(15.dp))
                 }
             }
             Text(text = "1 sc")
@@ -63,10 +62,10 @@ fun RangeSliderBox(communicationSettingViewModel: CommunicationSettingViewModel)
             Box(modifier = Modifier.width(50.dp)){
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(text = "to", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(15.dp))
                 }
             }
             Text(text = "1 mt")
