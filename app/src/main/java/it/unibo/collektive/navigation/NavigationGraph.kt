@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import it.unibo.collektive.ui.pages.ChatPage
 import it.unibo.collektive.ui.pages.HomePage
 import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
+import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 
 @Composable
@@ -15,6 +16,7 @@ fun SetupNavigationGraph(
     navigationController: NavHostController,
     communicationSettingViewModel: CommunicationSettingViewModel,
     nearbyDevicesViewModel: NearbyDevicesViewModel,
+    messagesViewModel: MessagesViewModel,
     startDestination: String,
     modifier: Modifier
 ) {
@@ -22,7 +24,13 @@ fun SetupNavigationGraph(
         composable(
             route = Pages.Chat.route
         ) {
-            ChatPage(communicationSettingViewModel, navigationController, modifier)
+            ChatPage(
+                communicationSettingViewModel,
+                nearbyDevicesViewModel,
+                messagesViewModel,
+                navigationController,
+                modifier
+            )
         }
         composable(
             route = Pages.Home.route

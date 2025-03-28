@@ -18,6 +18,7 @@ import it.unibo.collektive.navigation.Pages
 import it.unibo.collektive.ui.theme.CollektiveExampleAndroidTheme
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
+import it.unibo.collektive.viewmodels.MessagesViewModel
 
 /**
  * Main entry point for the Android app.
@@ -38,9 +39,16 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun Initialization(modifier: Modifier,
-                                    nearbyDevicesViewModel: NearbyDevicesViewModel = viewModel(),
-                                    communicationSettingViewModel: CommunicationSettingViewModel = viewModel()) {
-    NavigationInitializer(communicationSettingViewModel, nearbyDevicesViewModel, Pages.Home.route, modifier)
+                           nearbyDevicesViewModel: NearbyDevicesViewModel = viewModel(),
+                           communicationSettingViewModel: CommunicationSettingViewModel = viewModel(),
+                           messagesViewModel: MessagesViewModel = viewModel()) {
+    NavigationInitializer(
+        communicationSettingViewModel,
+        nearbyDevicesViewModel,
+        messagesViewModel,
+        Pages.Home.route,
+        modifier
+    )
 }
 
 @Preview(showBackground = true)

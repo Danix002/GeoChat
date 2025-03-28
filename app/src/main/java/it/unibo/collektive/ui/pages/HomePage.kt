@@ -1,5 +1,6 @@
 package it.unibo.collektive.ui.pages
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,6 +30,7 @@ import androidx.navigation.NavHostController
 import it.unibo.collektive.navigation.Pages
 import it.unibo.collektive.ui.theme.Purple40
 
+@SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
              navigationController: NavHostController,
@@ -42,16 +46,30 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
         nearbyDevicesViewModel.startCollektiveProgram()
     }
 
-    Column(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Collektive MQTT", modifier = Modifier.weight(1f), style = MaterialTheme.typography.displaySmall)
-            Box(modifier = Modifier.size(24.dp).background(color = connectionColor, shape = CircleShape))
+    LazyColumn(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Collektive MQTT", modifier = Modifier.weight(1f), style = MaterialTheme.typography.displaySmall)
+                Box(modifier = Modifier.size(24.dp).background(color = connectionColor, shape = CircleShape))
+            }
         }
-        Text("ID: ${nearbyDevicesViewModel.deviceId}", style = MaterialTheme.typography.bodyLarge)
-        if (dataFlow.isEmpty()) {
-            Text("No nearby devices found", style = MaterialTheme.typography.bodyMedium)
+        item {
+            Text("ID: ${nearbyDevicesViewModel.deviceId}", style = MaterialTheme.typography.bodyLarge)
         }
-        dataFlow.forEach { uuid ->
+        item {
+            Text("Name: ${nearbyDevicesViewModel.userName.value}", style = MaterialTheme.typography.bodyLarge)
+            // TODO: Button for change user name
+        }
+        item {
+            if (dataFlow.isEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("No nearby devices found", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+        items(dataFlow.toList()) { uuid ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Device ID", style = MaterialTheme.typography.bodyMedium)
@@ -59,11 +77,14 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
                 }
             }
         }
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Button(onClick = { navigationController.navigate(Pages.Chat.route) },
-                colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White)
-            ) {
-                Text(text = "Start chatting")
+        item {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Button(
+                    onClick = { navigationController.navigate(Pages.Chat.route) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White)
+                ) {
+                    Text(text = "Start chatting")
+                }
             }
         }
     }

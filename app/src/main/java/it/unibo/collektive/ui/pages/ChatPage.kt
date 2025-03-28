@@ -23,10 +23,15 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import it.unibo.collektive.navigation.Pages
+import it.unibo.collektive.ui.components.Chat
 import it.unibo.collektive.ui.theme.Purple40
+import it.unibo.collektive.viewmodels.MessagesViewModel
+import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 
 @Composable
 fun ChatPage(communicationSettingViewModel: CommunicationSettingViewModel,
+             nearbyDevicesViewModel: NearbyDevicesViewModel,
+             messagesViewModel: MessagesViewModel,
              navigationController: NavHostController,
              modifier: Modifier) {
     Column(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -58,5 +63,7 @@ fun ChatPage(communicationSettingViewModel: CommunicationSettingViewModel,
             }
             Text(text = "Back to Home")
         }
+        Chat(nearbyDevicesViewModel, messagesViewModel)
+        //TODO: box for write message to send
     }
 }
