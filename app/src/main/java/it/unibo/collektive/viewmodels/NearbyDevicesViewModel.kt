@@ -88,4 +88,9 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     fun setUserName(value: String){
         this._userName.value = value
     }
+
+    //TODO
+    /*private suspend fun spreadNewUserName(){
+
+    }*/
 }

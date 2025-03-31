@@ -12,15 +12,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import androidx.navigation.NavHostController
 import it.unibo.collektive.navigation.Pages
+import it.unibo.collektive.ui.components.UserNameEditPopUp
 import it.unibo.collektive.ui.theme.Purple40
 
 @SuppressLint("StateFlowValueCalledInComposition")
@@ -42,8 +50,15 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
         NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color.Red
     }
 
+    var editPopup by remember { mutableStateOf(false) }
+    var userName by remember { mutableStateOf(nearbyDevicesViewModel.userName.value) }
+
     LaunchedEffect(Unit) {
         nearbyDevicesViewModel.startCollektiveProgram()
+    }
+
+    LaunchedEffect(editPopup) {
+        userName = nearbyDevicesViewModel.userName.value
     }
 
     LazyColumn(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -57,8 +72,16 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
             Text("ID: ${nearbyDevicesViewModel.deviceId}", style = MaterialTheme.typography.bodyLarge)
         }
         item {
-            Text("Name: ${nearbyDevicesViewModel.userName.value}", style = MaterialTheme.typography.bodyLarge)
-            // TODO: Button for change user name
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Name: $userName", style = MaterialTheme.typography.bodyLarge)
+                IconButton(onClick = { editPopup = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Create,
+                        contentDescription = "Modify user-name",
+                        tint = Purple40
+                    )
+                }
+            }
         }
         item {
             if (dataFlow.isEmpty()) {
@@ -87,5 +110,12 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
                 }
             }
         }
+    }
+    if(editPopup){
+        UserNameEditPopUp(
+            onDismissClick = { editPopup = false },
+            currentUserName = nearbyDevicesViewModel.userName.value,
+            nearbyDevicesViewModel = nearbyDevicesViewModel
+        )
     }
 }

@@ -23,7 +23,7 @@ import kotlin.random.Random
 @Composable
 fun Message(message: Message, isSentByUser: Boolean) {
     val senderColor = Color(Random.nextFloat(), Random.nextFloat(), Random.nextFloat(), 1f)
-    //TODO: remove opportunity random color message for user name equal to box message
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isSentByUser) Arrangement.End else Arrangement.Start
@@ -43,7 +43,10 @@ fun Message(message: Message, isSentByUser: Boolean) {
                         color = senderColor
                     )
                 }
-                Text(text = message.text, fontSize = 16.sp)
+                Text(
+                    text = message.text,
+                    fontSize = 16.sp,
+                    color = Color.Black)
                 Text(
                     text = "sent: ${message.time}, distance: ${message.distance}",
                     fontSize = 12.sp,
