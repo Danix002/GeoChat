@@ -37,7 +37,7 @@ fun Message(message: Message, isSentByUser: Boolean) {
             Column {
                 if(!isSentByUser) {
                     Text(
-                        text = "ID: ${message.userName}",
+                        text = message.userName,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = senderColor

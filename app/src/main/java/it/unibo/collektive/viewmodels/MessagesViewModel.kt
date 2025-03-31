@@ -11,15 +11,15 @@ class MessagesViewModel : ViewModel() {
     /**private val _messages = MutableStateFlow<List<Message>>(emptyList())*/
     private val _messages = MutableStateFlow(
         listOf(
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
-            Message("nil", "User", Uuid.random(), Uuid.random(), 0.0f, 0.0f)
+            Message("nil", "Pippo", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Piero", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Giovanni", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Daniela", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Lucia", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Gina", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Mario", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Luigi", Uuid.random(), Uuid.random(), 0.0f, 0.0f),
+            Message("nil", "Andrea", Uuid.random(), Uuid.random(), 0.0f, 0.0f)
             )
     )
     val messages: StateFlow<List<Message>> get() = _messages
