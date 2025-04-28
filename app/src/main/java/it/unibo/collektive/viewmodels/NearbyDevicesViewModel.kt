@@ -22,6 +22,7 @@ import kotlin.uuid.Uuid
 class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
     private val _dataFlow = MutableStateFlow<Set<Uuid>>(emptySet())
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
+    private val _userName = MutableStateFlow("User")
 
     /**
      * The connection state.
@@ -47,6 +48,11 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * The connection state.
      */
     val connectionFlow: StateFlow<ConnectionState> = _connectionFlow.asStateFlow()
+
+    /**
+     * The user name of local device.
+     */
+    val userName: StateFlow<String> get() = _userName
 
     /**
      * The local device ID.
@@ -75,4 +81,16 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
             }
         }
     }
+
+    /**
+     * Change user name of local device.
+     */
+    fun setUserName(value: String){
+        this._userName.value = value
+    }
+
+    //TODO
+    /*private suspend fun spreadNewUserName(){
+
+    }*/
 }

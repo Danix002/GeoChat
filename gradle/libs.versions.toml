@@ -40,6 +40,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-serialization-protobuf = { module = "org.jetbrains.kotlinx:kotlinx-serialization-protobuf", version.ref = "serialization" }
 mktt = { module = "it.nicolasfarabegoli:mktt", version = "1.2.3" }
 slf4j = "org.slf4j:slf4j-api:2.0.17"
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 
 [bundles]
 collektive = [ "collektive", "collektive-stdlib", "collektive-plugin" ]
