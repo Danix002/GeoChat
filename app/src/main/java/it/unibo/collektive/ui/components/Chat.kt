@@ -11,6 +11,7 @@ import it.unibo.collektive.ui.theme.Purple40
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.LaunchedEffect
 
 @Composable
 fun Chat(nearbyDevicesViewModel: NearbyDevicesViewModel, messagesViewModel: MessagesViewModel, modifier: Modifier){

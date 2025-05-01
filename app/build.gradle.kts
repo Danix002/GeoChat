@@ -61,7 +61,6 @@ android {
 }
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -71,13 +70,15 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.lifecycle.viewmodel)
-    implementation(libs.bundles.collektive)
+    implementation(libs.collektive.dsl.jvm)
+    implementation(libs.collektive.stdlib)
     implementation(libs.bundles.serialization)
     implementation(libs.bundles.hivemq)
     implementation(libs.bundles.logging)
     implementation(libs.kotlinx.datetime)
     implementation(libs.mktt)
     implementation(libs.androidx.navigation.compose)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

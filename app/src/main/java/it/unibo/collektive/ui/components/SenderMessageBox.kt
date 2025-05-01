@@ -1,5 +1,7 @@
 package it.unibo.collektive.ui.components
 
+import android.annotation.SuppressLint
+import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.OutlinedTextField
@@ -18,17 +20,58 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.google.android.gms.location.FusedLocationProviderClient
 import it.unibo.collektive.ui.theme.Purple40
+import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 import it.unibo.collektive.viewmodels.MessagesViewModel
+import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+import kotlin.Float.Companion.POSITIVE_INFINITY
 
+@SuppressLint("MissingPermission")
 @Composable
-fun SenderMessageBox(messagesViewModel: MessagesViewModel){
+fun SenderMessageBox(messagesViewModel: MessagesViewModel,
+                     communicationSettingViewModel: CommunicationSettingViewModel,
+                     nearbyDevicesViewModel: NearbyDevicesViewModel,
+                     fusedLocationProviderClient: FusedLocationProviderClient){
     var messageText by remember { mutableStateOf("") }
+    var messagingFlag by remember { mutableStateOf(false)}
+    /**
+     * TODO: doc
+     */
+    LaunchedEffect(messagingFlag) {
+        fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
+            CoroutineScope(Dispatchers.Main).launch {
+                messagesViewModel.listenIntentions(
+                    distance = if(messagesViewModel.getMessagingFlag()){
+                        communicationSettingViewModel.getDistance()
+                    }else{
+                        POSITIVE_INFINITY
+                    },
+                    position = location,
+                    nearbyDevicesViewModel = nearbyDevicesViewModel,
+                    userName = nearbyDevicesViewModel.userName.value,
+                    message = messageText,
+                    time = LocalDateTime.now()
+                )
+                /** TODO: Fino a quando il time non esaurisce rimane a true
+                 * if (messagesViewModel.getMessagingFlag() && ...){
+                 *      messagesViewModel.setMessagingFlag(flag = false)
+                 *      messagingFlag = false
+                 * }
+                 */
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -52,7 +95,10 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel){
                     unfocusedBorderColor = Purple40
                 )
             )
-            IconButton(onClick = { /**TODO: send message function*/ }) {
+            IconButton(onClick = {
+                messagesViewModel.setMessagingFlag(flag = true)
+                messagingFlag = true
+            }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send Message",

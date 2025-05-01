@@ -2,6 +2,9 @@ package it.unibo.collektive.model
 
 import kotlin.uuid.Uuid
 
+/**
+ * TODO: doc
+ */
 data class Message(
     val text: String,
     val userName: String,

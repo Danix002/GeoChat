@@ -4,8 +4,14 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
+import it.unibo.collektive.aggregate.Field
+import it.unibo.collektive.aggregate.api.mapNeighborhood
 import it.unibo.collektive.aggregate.api.neighboring
+import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
+import it.unibo.collektive.stdlib.spreading.distanceTo
+import it.unibo.collektive.stdlib.util.Point3D
+import it.unibo.collektive.stdlib.util.euclideanDistance3D
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -13,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -59,7 +66,17 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      */
     val deviceId = Uuid.random()
 
-    private suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
+    /**
+     * Change user name of local device.
+     */
+    fun setUserName(value: String){
+        this._userName.value = value
+    }
+
+    /**
+     * TODO: doc
+     */
+     suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
         Collektive(deviceId, MqttMailbox(deviceId, host = "broker.hivemq.com", dispatcher = dispatcher)) {
             neighboring(localId).neighbors.toSet()
         }
@@ -69,10 +86,8 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      */
     fun startCollektiveProgram() {
         viewModelScope.launch {
-            Log.i("NearbyDevicesViewModel", "Starting Collektive program...")
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
-            Log.i("NearbyDevicesViewModel", "Collektive program started")
             while (true) {
                 val newResult = program.cycle()
                 _dataFlow.value = newResult
@@ -83,14 +98,32 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     }
 
     /**
-     * Change user name of local device.
+     * TODO: doc
      */
-    fun setUserName(value: String){
-        this._userName.value = value
-    }
+    suspend fun getListOfDevices(sender: Map<Uuid, Pair<Float, String>>): Collektive<Uuid, List<Triple<Uuid, Float, String>>> =
+        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
+            mapNeighborhood { id ->
+                if (sender.containsKey(id)) {
+                    Triple(id, sender[id]!!.first, sender[id]!!.second)
+                } else {
+                    Triple(id, POSITIVE_INFINITY, "")
+                }
+            }.neighborsValues
+        }
 
-    //TODO
-    /*private suspend fun spreadNewUserName(){
+    /**
+     * TODO: doc
+     */
+    suspend fun getDistanceToDevices(position: Point3D): Collektive<Uuid, Field<Uuid, Double>> =
+        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
+            euclideanDistance3D(position)
+        }
 
-    }*/
+    suspend fun computeDistances(
+        senders: Map<Uuid, Pair<Float, String>>,
+        devicesValues: List<Triple<Uuid, Float, String>>,
+        position: Point3D,
+        isSender: Boolean,
+        userName: String = this._userName.value
+    ) : Collektive<Uuid, Map<Uuid, List<Params>>> = TODO()
 }

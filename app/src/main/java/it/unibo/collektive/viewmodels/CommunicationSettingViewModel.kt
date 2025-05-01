@@ -1,7 +1,6 @@
 package it.unibo.collektive.viewmodels
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 
 class CommunicationSettingViewModel : ViewModel(){
     private var distance: Float = 0.0F

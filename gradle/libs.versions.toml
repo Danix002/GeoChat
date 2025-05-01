@@ -1,5 +1,6 @@
 [versions]
 agp = "8.9.2"
+collektiveDslJvm = "24.0.0"
 kotlin = "2.1.20"
 collektive = "24.0.0"
 coreKtx = "1.16.0"
@@ -12,9 +13,11 @@ lifecycleRuntimeKtx = "2.8.7"
 activityCompose = "1.10.1"
 composeBom = "2025.04.01"
 serialization = "1.8.1"
+navigationCompose = "2.8.9"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+collektive-dsl-jvm = { module = "it.unibo.collektive:collektive-dsl-jvm", version.ref = "collektiveDslJvm" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

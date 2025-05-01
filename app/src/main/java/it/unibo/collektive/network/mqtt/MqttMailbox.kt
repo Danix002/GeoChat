@@ -22,7 +22,7 @@ import kotlin.uuid.Uuid
 /**
  * A mailbox that uses MQTT as the underlying transport.
  */
-class MqttMailbox private constructor(
+class MqttMailbox(
     private val deviceId: Uuid,
     host: String,
     port: Int,
@@ -37,9 +37,7 @@ class MqttMailbox private constructor(
     }
 
     private suspend fun initializeMqttClient() {
-        Log.i("MqttMailbox", "Connecting to the broker...")
         mqttClient.connect()
-        Log.i("MqttMailbox", "Connected to the broker")
         internalScope.launch(dispatcher) { receiveHeartbeatPulse() }
         internalScope.launch(dispatcher) { sendHeartbeatPulse() }
         internalScope.launch { cleanHeartbeatPulse() }
@@ -55,7 +53,6 @@ class MqttMailbox private constructor(
     private suspend fun receiveHeartbeatPulse() {
         mqttClient.subscribe(HEARTBEAT_WILD_CARD).collect {
             val neighborDeviceId = Uuid.parse(it.topic.split("/").last())
-            Log.i("MqttMailbox", "Received heartbeat pulse from $neighborDeviceId")
             addNeighbor(neighborDeviceId)
         }
     }
@@ -68,10 +65,8 @@ class MqttMailbox private constructor(
 
     private suspend fun receiveNeighborMessages() {
         mqttClient.subscribe(deviceTopic(deviceId)).collect {
-            Log.i("MqttMailbox", "Received message from ${it.topic}")
             try {
                 val deserialized = serializer.decodeSerialMessage<Uuid>(it.payload)
-                Log.d("MqttMailbox", "Received message from ${deserialized.senderId}")
                 deliverableReceived(deserialized)
             } catch (exception: SerializationException) {
                 Log.e("MqttMailbox", "Failed to deserialize message from ${it.topic}: ${exception.message}")
@@ -82,12 +77,10 @@ class MqttMailbox private constructor(
     override suspend fun close() {
         internalScope.cancel()
         mqttClient.disconnect()
-        Log.i("MqttMailbox", "Disconnected from the broker")
     }
 
     override fun onDeliverableReceived(receiverId: Uuid, message: Message<Uuid, Any?>) {
         require(message is SerializedMessage<Uuid>)
-        Log.i("MqttMailbox", "Sending message to $receiverId from $deviceId")
         internalScope.launch(dispatcher) {
             mqttClient.publish(
                 topic = deviceTopic(receiverId),

@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.google.android.gms.location.FusedLocationProviderClient
 import it.unibo.collektive.ui.pages.ChatPage
 import it.unibo.collektive.ui.pages.HomePage
 import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
@@ -18,7 +19,8 @@ fun SetupNavigationGraph(
     nearbyDevicesViewModel: NearbyDevicesViewModel,
     messagesViewModel: MessagesViewModel,
     startDestination: String,
-    modifier: Modifier
+    modifier: Modifier,
+    fusedLocationProviderClient: FusedLocationProviderClient
 ) {
     NavHost(navigationController, startDestination) {
         composable(
@@ -29,13 +31,19 @@ fun SetupNavigationGraph(
                 nearbyDevicesViewModel,
                 messagesViewModel,
                 navigationController,
-                modifier
+                modifier,
+                fusedLocationProviderClient
             )
         }
         composable(
             route = Pages.Home.route
         ) {
-            HomePage(nearbyDevicesViewModel, navigationController, modifier)
+            HomePage(
+                nearbyDevicesViewModel,
+                messagesViewModel,
+                navigationController,
+                modifier
+            )
         }
     }
 }
