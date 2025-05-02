@@ -26,7 +26,6 @@ import kotlin.uuid.Uuid
 class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
     private val _dataFlow = MutableStateFlow<Triple<Uuid?, Float?, String?>>(Triple(null, null, null))
     private var _senders: Map<Uuid, Pair<Float, String>> = emptyMap()
-    private val _devices = MutableStateFlow<List<Triple<Uuid, Float, String>>>(emptyList())
     private val _online = MutableStateFlow(false)
     private val _messagging = MutableStateFlow(false)
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
