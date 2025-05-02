@@ -81,7 +81,6 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
             }
         }
     }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()

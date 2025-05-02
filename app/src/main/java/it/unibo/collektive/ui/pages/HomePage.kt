@@ -100,9 +100,12 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
         }
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Button(onClick = {
+                Button(
+                    onClick = {
                         navigationController.navigate(Pages.Chat.route)
-                        messagesViewModel.setOnlineStatus(flag = true) },
+                        nearbyDevicesViewModel.setOnlineStatus(flag = false)
+                        messagesViewModel.setOnlineStatus(flag = true)
+                              },
                     colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White)
                 ) {
                     Text(text = "Start chatting")

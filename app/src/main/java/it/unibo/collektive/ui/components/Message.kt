@@ -23,7 +23,6 @@ import kotlin.random.Random
 @Composable
 fun Message(message: Message, isSentByUser: Boolean) {
     val senderColor = Color(Random.nextFloat(), Random.nextFloat(), Random.nextFloat(), 1f)
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isSentByUser) Arrangement.End else Arrangement.Start

@@ -30,6 +30,8 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     private val _dataFlow = MutableStateFlow<Set<Uuid>>(emptySet())
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private val _userName = MutableStateFlow("User")
+    private val _online = MutableStateFlow(true)
+    private val _devicesInChat= MutableStateFlow(0)
 
     /**
      * The connection state.
@@ -50,6 +52,11 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * The set of nearby devices.
      */
     val dataFlow: StateFlow<Set<Uuid>> = _dataFlow.asStateFlow()
+
+    /**
+     * The number of devices in the chat.
+     */
+    val devicesInChat: StateFlow<Int> = _devicesInChat.asStateFlow()
 
     /**
      * The connection state.
@@ -74,6 +81,18 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     }
 
     /**
+     * Online devices in the home page.
+     */
+    fun setOnlineStatus(flag: Boolean){
+        this._online.value = flag
+
+    }
+
+    fun getNumberOfDevicesInChat(): Int{
+        return this._devicesInChat.value
+    }
+
+    /**
      * TODO: doc
      */
      private suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
@@ -88,11 +107,10 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
         viewModelScope.launch {
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
-            while (true) {
+            while (_online.value) {
                 val newResult = program.cycle()
                 _dataFlow.value = newResult
                 delay(1.seconds)
-                Log.i("NearbyDevicesViewModel", "New nearby devices: $newResult")
             }
         }
     }
@@ -100,16 +118,19 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     /**
      * TODO: doc
      */
-    suspend fun getListOfDevices(sender: Map<Uuid, Pair<Float, String>>): Collektive<Uuid, List<Triple<Uuid, Float, String>>> =
-        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
+    suspend fun getListOfDevices(sender: Map<Uuid, Pair<Float, String>>): Collektive<Uuid, Map<Uuid, Pair<Float, String>>> {
+        val devices = Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
             mapNeighborhood { id ->
                 if (sender.containsKey(id)) {
-                    Triple(id, sender[id]!!.first, sender[id]!!.second)
+                    sender[id]!!.first to sender[id]!!.second
                 } else {
-                    Triple(id, POSITIVE_INFINITY, "")
+                    POSITIVE_INFINITY to ""
                 }
-            }.neighborsValues
+            }.toMap()
         }
+        this._devicesInChat.value = devices.cycle().size
+        return devices
+    }
 
     /**
      * TODO: doc

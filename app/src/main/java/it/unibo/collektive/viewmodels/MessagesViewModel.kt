@@ -6,9 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
 import it.unibo.collektive.model.Message
-import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
-import it.unibo.collektive.stdlib.lists.FieldedCollectionsExtensions.last
 import it.unibo.collektive.stdlib.spreading.gradientCast
 import it.unibo.collektive.stdlib.util.Point3D
 import it.unibo.collektive.stdlib.util.euclideanDistance3D
@@ -17,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import kotlin.Float.Companion.POSITIVE_INFINITY
@@ -26,10 +25,16 @@ import kotlin.uuid.Uuid
 class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
     private val _dataFlow = MutableStateFlow<Triple<Uuid?, Float?, String?>>(Triple(null, null, null))
     private var _senders: Map<Uuid, Pair<Float, String>> = emptyMap()
+    private var _devices: Map<Uuid, Pair<Float, String>> = emptyMap()
     private val _online = MutableStateFlow(false)
     private val _messagging = MutableStateFlow(false)
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> get() = _messages
+
+    /**
+     * TODO: doc.
+     */
+    val dataFlow: StateFlow<Triple<Uuid?, Float?, String?>> = _dataFlow.asStateFlow()
 
     // TODO
     /*fun addNewMessageToList() {
@@ -56,6 +61,9 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
 
     }*/
 
+    /**
+     * Online devices in the chat page.
+     */
     fun setOnlineStatus(flag: Boolean){
         this._online.value = flag
 
@@ -91,9 +99,10 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                     position = coordinates
                 )
                 while (_online.value) {
+                    Log.i("MessagesViewModel", "Flag for messaging: ${getMessagingFlag()}")
                     /**
                      * Il messaggio deve essere inviato e refreshato ad ogni iterazione fino a che
-                     * message flag è uguale a true, verrà impostato a false quando il timer è scaduto
+                     * message flag è uguale a true, verrà impostato a false in SenderMessageBox.kt quando il timer è scaduto
                      */
                     Log.i(
                         "MessagesViewModel",
@@ -107,14 +116,15 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                     ) {
                         _senders += newResult.first to (newResult.second to newResult.third)
                     }
+                    _devices = nearbyDevicesViewModel.getListOfDevices(_senders).cycle()
                     Log.i("MessagesViewModel", "Senders: $_senders")
+                    Log.i("MessagesViewModel", "Devices: $_devices")
                     delay(1.seconds)
                     /**
                      * TODO: pulizia di tutte le strutture dati utilizzate per inoltrare il messaggio
                      */
-                    Log.i("MessagesViewModel", "Flag for messaging: ${getMessagingFlag()}")
                     _senders = emptyMap()
-                    Log.i("MessagesViewModel", "Senders: $_senders")
+                    _devices = emptyMap()
                 }
             }
         }else{
