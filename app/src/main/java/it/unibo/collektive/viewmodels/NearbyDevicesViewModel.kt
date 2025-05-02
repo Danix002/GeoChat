@@ -76,7 +76,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     /**
      * TODO: doc
      */
-     suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
+     private suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
         Collektive(deviceId, MqttMailbox(deviceId, host = "broker.hivemq.com", dispatcher = dispatcher)) {
             neighboring(localId).neighbors.toSet()
         }

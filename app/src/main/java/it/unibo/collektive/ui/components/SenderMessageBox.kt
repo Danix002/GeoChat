@@ -2,6 +2,7 @@ package it.unibo.collektive.ui.components
 
 import android.annotation.SuppressLint
 import android.location.Location
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.OutlinedTextField
@@ -33,6 +34,7 @@ import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import kotlin.Float.Companion.POSITIVE_INFINITY
@@ -51,6 +53,10 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             CoroutineScope(Dispatchers.Main).launch {
+                Log.i(
+                    "SenderMessageBox",
+                    "Sto per eseguire 'listenIntentions'"
+                )
                 messagesViewModel.listenIntentions(
                     distance = if(messagesViewModel.getMessagingFlag()){
                         communicationSettingViewModel.getDistance()
@@ -61,14 +67,17 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
                     nearbyDevicesViewModel = nearbyDevicesViewModel,
                     userName = nearbyDevicesViewModel.userName.value,
                     message = messageText,
-                    time = LocalDateTime.now()
+                    time = LocalDateTime.now() /**Questo è il timestap di inoltro del messaggio da inserire nella UI del messaggio*/
                 )
-                /** TODO: Fino a quando il time non esaurisce rimane a true
-                 * if (messagesViewModel.getMessagingFlag() && ...){
-                 *      messagesViewModel.setMessagingFlag(flag = false)
-                 *      messagingFlag = false
-                 * }
-                 */
+                if (messagesViewModel.getMessagingFlag()){
+                    delay((communicationSettingViewModel.getTime() * 1000).toLong())
+                    Log.i(
+                        "SenderMessageBox",
+                        "Sono passati : ${(communicationSettingViewModel.getTime() * 1000).toLong()}"
+                    )
+                    messagesViewModel.setMessagingFlag(flag = false)
+                    messagingFlag = false
+                }
             }
         }
     }

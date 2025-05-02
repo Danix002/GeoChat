@@ -5,12 +5,13 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
-import it.unibo.collektive.aggregate.Field
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
+import it.unibo.collektive.stdlib.lists.FieldedCollectionsExtensions.last
 import it.unibo.collektive.stdlib.spreading.gradientCast
 import it.unibo.collektive.stdlib.util.Point3D
+import it.unibo.collektive.stdlib.util.euclideanDistance3D
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +25,7 @@ import kotlin.uuid.Uuid
 
 class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
     private val _dataFlow = MutableStateFlow<Triple<Uuid?, Float?, String?>>(Triple(null, null, null))
-    private val _senders = MutableStateFlow<Map<Uuid, Pair<Float, String>>>(emptyMap())
+    private var _senders: Map<Uuid, Pair<Float, String>> = emptyMap()
     private val _devices = MutableStateFlow<List<Triple<Uuid, Float, String>>>(emptyList())
     private val _online = MutableStateFlow(false)
     private val _messagging = MutableStateFlow(false)
@@ -81,29 +82,40 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         time: LocalDateTime
     ) {
         if(position != null) {
-            val coordinates = Point3D(Triple(position.latitude, position.longitude, position.altitude))
             viewModelScope.launch {
-                val distances = nearbyDevicesViewModel.getDistanceToDevices(coordinates)
-                Log.i("MessagesViewModel", "Distances: ${distances.cycle()}")
+                val coordinates = Point3D(Triple(position.latitude, position.longitude, position.altitude))
                 val program = spreadIntentionToSendMessage(
                     isSender = getMessagingFlag(),
                     deviceId = nearbyDevicesViewModel.deviceId,
+                    userName = userName,
                     distance = distance,
-                    metric = distances.cycle(),
-                    userName = userName
+                    position = coordinates
                 )
                 while (_online.value) {
+                    /**
+                     * Il messaggio deve essere inviato e refreshato ad ogni iterazione fino a che
+                     * message flag è uguale a true, verrà impostato a false quando il timer è scaduto
+                     */
+                    Log.i(
+                        "MessagesViewModel",
+                        "Distances: ${nearbyDevicesViewModel.getDistanceToDevices(coordinates).cycle()}"
+                    )
                     val newResult = program.cycle()
                     _dataFlow.value = newResult
-                    /**
-                     * TODO: saluzione provvisoria prima di mettere il timer
-                     */
-                    if(newResult.second != POSITIVE_INFINITY) {
-                        _senders.value += newResult.first to (newResult.second to newResult.third)
-                        Log.i("MessagesViewModel", "Senders: ${_senders.value}")
+                    if(
+                        (newResult.second != POSITIVE_INFINITY && newResult.first != nearbyDevicesViewModel.deviceId) ||
+                        (newResult.second != POSITIVE_INFINITY && newResult.first == nearbyDevicesViewModel.deviceId && getMessagingFlag())
+                    ) {
+                        _senders += newResult.first to (newResult.second to newResult.third)
                     }
-                    /**_devices.value = nearbyDevicesViewModel.getListOfDevices(_senders.value).cycle()*/
-                    delay(5.seconds)
+                    Log.i("MessagesViewModel", "Senders: $_senders")
+                    delay(1.seconds)
+                    /**
+                     * TODO: pulizia di tutte le strutture dati utilizzate per inoltrare il messaggio
+                     */
+                    Log.i("MessagesViewModel", "Flag for messaging: ${getMessagingFlag()}")
+                    _senders = emptyMap()
+                    Log.i("MessagesViewModel", "Senders: $_senders")
                 }
             }
         }else{
@@ -117,15 +129,15 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     private suspend fun spreadIntentionToSendMessage(
         isSender: Boolean,
         deviceId: Uuid,
-        distance: Float,
-        metric: Field<Uuid, Double>,
         userName: String,
+        distance: Float,
+        position: Point3D
     ): Collektive<Uuid, Triple<Uuid, Float, String>> =
         Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
             gradientCast(
                 source = isSender,
                 local = Triple(deviceId, distance, userName),
-                metric = metric,
+                metric = euclideanDistance3D(position),
                 accumulateData = { fromSource, toNeighbor, dist ->
                     if (fromSource + toNeighbor <= distance.toDouble()) {
                         dist

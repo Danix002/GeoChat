@@ -1,6 +1,7 @@
 package it.unibo.collektive.ui.components
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 fun Chat(nearbyDevicesViewModel: NearbyDevicesViewModel, messagesViewModel: MessagesViewModel, modifier: Modifier){
     LazyColumn(
         modifier = modifier
+            .fillMaxWidth()
             .border(5.dp, Purple40, shape = RoundedCornerShape(16.dp))
             .padding(7.dp),
         reverseLayout = true
