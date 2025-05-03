@@ -33,7 +33,6 @@ import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 @Composable
 fun UserNameEditPopUp(onDismissClick: ()-> Unit, currentUserName: String, nearbyDevicesViewModel: NearbyDevicesViewModel) {
     var userNameText by remember { mutableStateOf(currentUserName) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()

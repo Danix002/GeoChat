@@ -12,6 +12,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -22,7 +24,7 @@ import kotlin.uuid.Uuid
 /**
  * A mailbox that uses MQTT as the underlying transport.
  */
-class MqttMailbox private constructor(
+class MqttMailbox(
     private val deviceId: Uuid,
     host: String,
     port: Int,
@@ -30,6 +32,7 @@ class MqttMailbox private constructor(
     private val retentionTime: Duration,
     private val dispatcher: CoroutineDispatcher,
 ) : AbstractSerializerMailbox<Uuid>(deviceId, serializer, retentionTime) {
+    private val mutex = Mutex()
     private val internalScope = CoroutineScope(dispatcher)
     private val mqttClient = MkttClient(dispatcher) {
         brokerUrl = host
@@ -37,9 +40,7 @@ class MqttMailbox private constructor(
     }
 
     private suspend fun initializeMqttClient() {
-        Log.i("MqttMailbox", "Connecting to the broker...")
         mqttClient.connect()
-        Log.i("MqttMailbox", "Connected to the broker")
         internalScope.launch(dispatcher) { receiveHeartbeatPulse() }
         internalScope.launch(dispatcher) { sendHeartbeatPulse() }
         internalScope.launch { cleanHeartbeatPulse() }
@@ -55,23 +56,25 @@ class MqttMailbox private constructor(
     private suspend fun receiveHeartbeatPulse() {
         mqttClient.subscribe(HEARTBEAT_WILD_CARD).collect {
             val neighborDeviceId = Uuid.parse(it.topic.split("/").last())
-            Log.i("MqttMailbox", "Received heartbeat pulse from $neighborDeviceId")
             addNeighbor(neighborDeviceId)
         }
     }
 
     private suspend fun cleanHeartbeatPulse() {
-        cleanupNeighbors(retentionTime)
-        delay(retentionTime)
-        cleanHeartbeatPulse()
+        /**
+         * Soluzione provvisoria al problema di accesso concorrente
+         */
+        mutex.withLock {
+            cleanupNeighbors(retentionTime)
+            delay(retentionTime)
+            cleanHeartbeatPulse()
+        }
     }
 
     private suspend fun receiveNeighborMessages() {
         mqttClient.subscribe(deviceTopic(deviceId)).collect {
-            Log.i("MqttMailbox", "Received message from ${it.topic}")
             try {
                 val deserialized = serializer.decodeSerialMessage<Uuid>(it.payload)
-                Log.d("MqttMailbox", "Received message from ${deserialized.senderId}")
                 deliverableReceived(deserialized)
             } catch (exception: SerializationException) {
                 Log.e("MqttMailbox", "Failed to deserialize message from ${it.topic}: ${exception.message}")
@@ -82,12 +85,10 @@ class MqttMailbox private constructor(
     override suspend fun close() {
         internalScope.cancel()
         mqttClient.disconnect()
-        Log.i("MqttMailbox", "Disconnected from the broker")
     }
 
     override fun onDeliverableReceived(receiverId: Uuid, message: Message<Uuid, Any?>) {
         require(message is SerializedMessage<Uuid>)
-        Log.i("MqttMailbox", "Sending message to $receiverId from $deviceId")
         internalScope.launch(dispatcher) {
             mqttClient.publish(
                 topic = deviceTopic(receiverId),

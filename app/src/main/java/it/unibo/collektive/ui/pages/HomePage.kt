@@ -37,30 +37,30 @@ import androidx.navigation.NavHostController
 import it.unibo.collektive.navigation.Pages
 import it.unibo.collektive.ui.components.UserNameEditPopUp
 import it.unibo.collektive.ui.theme.Purple40
+import it.unibo.collektive.viewmodels.MessagesViewModel
 
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
-fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
-             navigationController: NavHostController,
-             modifier: Modifier) {
+fun HomePage(
+    nearbyDevicesViewModel: NearbyDevicesViewModel,
+    messagesViewModel: MessagesViewModel,
+    navigationController: NavHostController,
+    modifier: Modifier
+) {
     val dataFlow by nearbyDevicesViewModel.dataFlow.collectAsState()
     val connectionFlow by nearbyDevicesViewModel.connectionFlow.collectAsState()
     val connectionColor = when (connectionFlow) {
         NearbyDevicesViewModel.ConnectionState.CONNECTED -> Color.Green
         NearbyDevicesViewModel.ConnectionState.DISCONNECTED -> Color.Red
     }
-
     var editPopup by remember { mutableStateOf(false) }
     var userName by remember { mutableStateOf(nearbyDevicesViewModel.userName.value) }
-
     LaunchedEffect(Unit) {
         nearbyDevicesViewModel.startCollektiveProgram()
     }
-
     LaunchedEffect(editPopup) {
         userName = nearbyDevicesViewModel.userName.value
     }
-
     LazyColumn(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -103,7 +103,11 @@ fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
         item {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Button(
-                    onClick = { navigationController.navigate(Pages.Chat.route) },
+                    onClick = {
+                        navigationController.navigate(Pages.Chat.route)
+                        nearbyDevicesViewModel.setOnlineStatus(flag = false)
+                        messagesViewModel.setOnlineStatus(flag = true)
+                              },
                     colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White)
                 ) {
                     Text(text = "Start chatting")
