@@ -38,6 +38,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import kotlin.Float.Companion.POSITIVE_INFINITY
+import kotlin.time.Duration.Companion.seconds
 
 @SuppressLint("MissingPermission")
 @Composable
@@ -46,6 +47,7 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
                      nearbyDevicesViewModel: NearbyDevicesViewModel,
                      fusedLocationProviderClient: FusedLocationProviderClient){
     var messageText by remember { mutableStateOf("") }
+    var messageTextToSend by remember { mutableStateOf("") }
     var messagingFlag by remember { mutableStateOf(false)}
     /**
      * TODO: doc
@@ -53,12 +55,8 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             CoroutineScope(Dispatchers.Main).launch {
-                Log.i(
-                    "SenderMessageBox",
-                    "Sto per eseguire 'listenIntentions'"
-                )
                 messagesViewModel.listenIntentions(
-                    distance = if(messagesViewModel.getMessagingFlag()){
+                    distance = if(messagesViewModel.messaging.value){
                         communicationSettingViewModel.getDistance()
                     }else{
                         POSITIVE_INFINITY
@@ -66,18 +64,16 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
                     position = location,
                     nearbyDevicesViewModel = nearbyDevicesViewModel,
                     userName = nearbyDevicesViewModel.userName.value,
-                    message = messageText,
-                    time = LocalDateTime.now() /**Questo è il timestap di inoltro del messaggio da inserire nella UI del messaggio*/
+                    message = messageTextToSend,
+                    time = LocalDateTime.now()
                 )
-                if (messagesViewModel.getMessagingFlag()){
-                    delay((communicationSettingViewModel.getTime() * 1000).toLong())
-                    Log.i(
-                        "SenderMessageBox",
-                        "Sono passati : ${(communicationSettingViewModel.getTime() * 1000).toLong()}"
-                    )
+                if (messagesViewModel.messaging.value){
+                    val validationTime = communicationSettingViewModel.getTime().toInt().seconds + messagesViewModel.MINIMUM_TIME_TO_SEND
+                    delay(validationTime)
                     messagesViewModel.setMessagingFlag(flag = false)
                     messagingFlag = false
                 }
+                messageTextToSend = ""
             }
         }
     }
@@ -104,8 +100,12 @@ fun SenderMessageBox(messagesViewModel: MessagesViewModel,
                 )
             )
             IconButton(onClick = {
-                messagesViewModel.setMessagingFlag(flag = true)
-                messagingFlag = true
+                messageTextToSend = messageText
+                if(messageTextToSend != "" && !messagingFlag) {
+                    messagesViewModel.setMessagingFlag(flag = true)
+                    messagingFlag = true
+                    messageText = ""
+                }
             }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,

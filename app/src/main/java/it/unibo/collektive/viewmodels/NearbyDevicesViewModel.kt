@@ -9,7 +9,6 @@ import it.unibo.collektive.aggregate.api.mapNeighborhood
 import it.unibo.collektive.aggregate.api.neighboring
 import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
-import it.unibo.collektive.stdlib.spreading.distanceTo
 import it.unibo.collektive.stdlib.util.Point3D
 import it.unibo.collektive.stdlib.util.euclideanDistance3D
 import kotlinx.coroutines.CoroutineDispatcher
@@ -19,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -88,10 +88,6 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
 
     }
 
-    fun getNumberOfDevicesInChat(): Int{
-        return this._devicesInChat.value
-    }
-
     /**
      * TODO: doc
      */
@@ -118,33 +114,45 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     /**
      * TODO: doc
      */
-    suspend fun getListOfDevices(sender: Map<Uuid, Pair<Float, String>>): Collektive<Uuid, Map<Uuid, Pair<Float, String>>> {
-        val devices = Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
+    suspend fun getListOfDevices(sender: Map<Uuid, Triple<Float, String, String>>): Collektive<Uuid, Map<Uuid, Triple<Float, String, String>>> =
+        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
             mapNeighborhood { id ->
-                if (sender.containsKey(id)) {
-                    sender[id]!!.first to sender[id]!!.second
-                } else {
-                    POSITIVE_INFINITY to ""
-                }
+                sender[id] ?: Triple(-1f, userName.value, "")
             }.toMap()
+        }.also {
+            delay(1.seconds)
+            _devicesInChat.value = it.cycle().size
         }
-        this._devicesInChat.value = devices.cycle().size
-        return devices
-    }
 
     /**
      * TODO: doc
      */
-    suspend fun getDistanceToDevices(position: Point3D): Collektive<Uuid, Field<Uuid, Double>> =
-        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
-            euclideanDistance3D(position)
-        }
-
-    suspend fun computeDistances(
-        senders: Map<Uuid, Pair<Float, String>>,
-        devicesValues: List<Triple<Uuid, Float, String>>,
+    suspend fun transformDistances(
+        senders: Map<Uuid, Triple<Float, String, String>>,
+        devicesValues: Map<Uuid, Triple<Float, String, String>>,
         position: Point3D,
-        isSender: Boolean,
-        userName: String = this._userName.value
-    ) : Collektive<Uuid, Map<Uuid, List<Params>>> = TODO()
+        time: LocalDateTime,
+        userName: String = _userName.value
+    ) : Collektive<Uuid, Map<Uuid, List<Params>>> =
+        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
+            neighboring(devicesValues).alignedMap(euclideanDistance3D(position)) { _: Uuid, deviceValues: Map<Uuid, Triple<Float, String, String>>, distance: Double ->
+                deviceValues.entries.map { (sender, messagingParams) ->
+                    Params(
+                        sender to messagingParams.second,
+                        localId to userName,
+                        messagingParams.first,
+                        distance,
+                        messagingParams.third,
+                        time,
+                        senders.containsKey(sender) && messagingParams.first != -1f && sender != localId
+                    )
+                }
+            }.toMap()
+                .filterKeys { senders.containsKey(it) && it != localId }
+                .mapValues { (key, list) ->
+                    list.filter { it.isSenderValues && it.to.first == key }
+                }
+        }.also {
+            delay(2.seconds)
+        }
 }

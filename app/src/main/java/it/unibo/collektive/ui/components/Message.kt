@@ -18,10 +18,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.ui.theme.Purple40
+import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 import kotlin.random.Random
 
 @Composable
-fun Message(message: Message, isSentByUser: Boolean) {
+fun Message(message: Message, isSentByUser: Boolean, communicationSettingViewModel: CommunicationSettingViewModel) {
     val senderColor = Color(Random.nextFloat(), Random.nextFloat(), Random.nextFloat(), 1f)
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -47,7 +48,7 @@ fun Message(message: Message, isSentByUser: Boolean) {
                     fontSize = 16.sp,
                     color = Color.Black)
                 Text(
-                    text = "sent: ${message.time}, distance: ${message.distance}",
+                    text = "sent: ${message.time}, distance: ${communicationSettingViewModel.formatDistance(message.distance)}",
                     fontSize = 12.sp,
                     color = Purple40
                 )

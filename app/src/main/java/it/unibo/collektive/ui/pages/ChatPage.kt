@@ -86,7 +86,8 @@ fun ChatPage(
             Chat(
                 nearbyDevicesViewModel,
                 messagesViewModel,
-                Modifier.weight(1f)
+                Modifier.weight(1f),
+                communicationSettingViewModel
             )
             SenderMessageBox(
                 messagesViewModel,
