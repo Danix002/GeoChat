@@ -33,7 +33,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     private val _received = MutableStateFlow<Map<Uuid, List<Params>>>(emptyMap())
 
     /**
-     * TODO: doc
+     * Minimum propagation time required for the entire process of forwarding a message.
      */
     val MINIMUM_TIME_TO_SEND = 5.seconds
 
@@ -47,7 +47,9 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      */
     val messaging: StateFlow<Boolean> get() = _messaging
 
-    // TODO
+    /**
+     * TODO: doc
+     */
     private fun addNewMessageToList(received: Map<Uuid, List<Params>>) {
         val tmp = this._messages.value.toMutableList()
         tmp += received.values.flatten().map { newMessage ->
@@ -72,6 +74,9 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         Log.i("MessagesViewModel", "Message list: ${_messages.value}")
     }
 
+    /**
+     * TODO: doc
+     */
     private fun addNewMessageToList(msg: Message) {
         val tmp = this._messages.value.toMutableList()
         if(!tmp.any { it.id == msg.id }){
@@ -81,27 +86,6 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         Log.i("MessagesViewModel", "Message list: ${_messages.value}")
     }
 
-    // TODO
-    /*fun formatDistanceInKm(): Int {
-
-    }*/
-
-    /*fun formatDistanceInMt(): Int {
-
-    }*/
-
-    /*fun formatTimeInSc(): Int {
-
-    }*/
-
-    /*fun formatTimeInMin(): Int {
-
-    }*/
-
-    /*fun updateUserNameToList(){
-
-    }*/
-
     /**
      * Online devices in the chat page.
      */
@@ -110,10 +94,12 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
 
     }
 
+    /**
+     * TODO: doc
+     */
     fun setMessagingFlag(flag: Boolean){
         this._messaging.value = flag
     }
-
 
     /**
      * TODO: doc

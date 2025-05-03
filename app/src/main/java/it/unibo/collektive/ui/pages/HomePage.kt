@@ -41,10 +41,12 @@ import it.unibo.collektive.viewmodels.MessagesViewModel
 
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
-fun HomePage(nearbyDevicesViewModel: NearbyDevicesViewModel,
-             messagesViewModel: MessagesViewModel,
-             navigationController: NavHostController,
-             modifier: Modifier) {
+fun HomePage(
+    nearbyDevicesViewModel: NearbyDevicesViewModel,
+    messagesViewModel: MessagesViewModel,
+    navigationController: NavHostController,
+    modifier: Modifier
+) {
     val dataFlow by nearbyDevicesViewModel.dataFlow.collectAsState()
     val connectionFlow by nearbyDevicesViewModel.connectionFlow.collectAsState()
     val connectionColor = when (connectionFlow) {

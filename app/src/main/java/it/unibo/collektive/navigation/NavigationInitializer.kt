@@ -9,12 +9,14 @@ import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 
 @Composable
-fun NavigationInitializer(communicationSettingViewModel: CommunicationSettingViewModel,
-                          nearbyDevicesViewModel: NearbyDevicesViewModel,
-                          messagesViewModel: MessagesViewModel,
-                          startDestination: String,
-                          modifier: Modifier,
-                          fusedLocationProviderClient: FusedLocationProviderClient) {
+fun NavigationInitializer(
+    communicationSettingViewModel: CommunicationSettingViewModel,
+    nearbyDevicesViewModel: NearbyDevicesViewModel,
+    messagesViewModel: MessagesViewModel,
+    startDestination: String,
+    modifier: Modifier,
+    fusedLocationProviderClient: FusedLocationProviderClient
+) {
     val navigationController = rememberNavController()
     SetupNavigationGraph(
         navigationController,
