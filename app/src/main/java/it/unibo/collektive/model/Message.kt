@@ -1,5 +1,6 @@
 package it.unibo.collektive.model
 
+import java.time.LocalDateTime
 import kotlin.uuid.Uuid
 
 /**
@@ -12,7 +13,8 @@ data class Message(
     val receiver: Uuid,
     val time: String,
     val distance: Float,
-    val id: Int = generateId(text, userName, sender, receiver, time, distance)
+    val timestamp: LocalDateTime,
+    val id: Int = generateId(text, userName, sender, receiver, time, distance, timestamp)
 ) {
     companion object {
         fun generateId(
@@ -21,9 +23,10 @@ data class Message(
             sender: Uuid,
             receiver: Uuid,
             time: String,
-            distance: Float
+            distance: Float,
+            timestamp: LocalDateTime
         ): Int {
-            return "$text|$userName|$sender|$receiver|$time|$distance".hashCode()
+            return "$text|$userName|$sender|$receiver|$time|$distance|$timestamp".hashCode()
         }
     }
 }

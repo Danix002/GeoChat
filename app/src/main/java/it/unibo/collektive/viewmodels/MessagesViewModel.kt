@@ -63,7 +63,8 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 sender = newMessage.to.first,
                 receiver = newMessage.from.first,
                 time = "${newMessage.timestamp.hour}:$minute",
-                distance = newMessage.distance.toFloat()
+                distance = newMessage.distance.toFloat(),
+                timestamp = newMessage.timestamp
             )
         }.filterNot { msg ->
             tmp.any { existing ->
@@ -142,7 +143,8 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                                     sender = nearbyDevicesViewModel.deviceId,
                                     receiver = nearbyDevicesViewModel.deviceId,
                                     time = "${time.hour}:$minute",
-                                    distance = 0f
+                                    distance = 0f,
+                                    timestamp = time
                                 )
                             )
                         }
