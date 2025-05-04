@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,6 +82,16 @@ fun HomePage(
                         tint = Purple40
                     )
                 }
+            }
+        }
+        item {
+            Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+                Text("Rules", style = MaterialTheme.typography.displaySmall)
+            }
+        }
+        item {
+            Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+                Text("TODO", style = MaterialTheme.typography.bodyLarge)
             }
         }
         item {
