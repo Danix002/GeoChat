@@ -62,6 +62,7 @@ import it.unibo.collektive.viewmodels.MessagesViewModel
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private lateinit var locationPermissionRequest: ActivityResultLauncher<Array<String>>
     private lateinit var locationCallback: LocationCallback
 
     /**
@@ -81,6 +82,21 @@ class MainActivity : ComponentActivity() {
                 accessDenied()
             }
         }
+        locationPermissionRequest = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            when {
+                permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
+                    permissionManager()
+                }
+                permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
+                    permissionManager()
+                }
+                else -> {
+                    accessDenied()
+                }
+            }
+        }
         permissionManager()
     }
 
@@ -91,7 +107,8 @@ class MainActivity : ComponentActivity() {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+            ) != PackageManager.PERMISSION_GRANTED &&
+            ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
@@ -106,21 +123,6 @@ class MainActivity : ComponentActivity() {
      * TODO: doc
      */
     private fun requestPermissions() {
-        val locationPermissionRequest = registerForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions()
-        ) { permissions ->
-            when {
-                permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
-                    requestGeolocalization()
-                }
-                permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
-                    requestGeolocalization()
-                }
-                else -> {
-                    accessDenied()
-                }
-            }
-        }
         locationPermissionRequest.launch(
             arrayOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -132,7 +134,7 @@ class MainActivity : ComponentActivity() {
     /**
      * TODO: doc
      */
-    @SuppressLint("MissingPermission")
+    @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun requestGeolocalization() {
         val locationRequest = LocationRequest
             .Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
@@ -168,7 +170,7 @@ class MainActivity : ComponentActivity() {
     /**
      * TODO: doc
      */
-    @SuppressLint("MissingPermission")
+    @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startLocationUpdates(locationRequest: LocationRequest) {
         fusedLocationClient.requestLocationUpdates(
             locationRequest,
