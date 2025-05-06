@@ -40,7 +40,8 @@ fun ChatPage(
     messagesViewModel: MessagesViewModel,
     navigationController: NavHostController,
     modifier: Modifier,
-    fusedLocationProviderClient: FusedLocationProviderClient
+    fusedLocationProviderClient: FusedLocationProviderClient,
+    onRequestPermissions: () -> Unit
 ) {
     val devicesInChat by nearbyDevicesViewModel.devicesInChat.collectAsState()
     Box(modifier = modifier.then(Modifier.padding(20.dp))) {
@@ -93,7 +94,8 @@ fun ChatPage(
                 messagesViewModel,
                 communicationSettingViewModel,
                 nearbyDevicesViewModel,
-                fusedLocationProviderClient
+                fusedLocationProviderClient,
+                onRequestPermissions
             )
         }
     }

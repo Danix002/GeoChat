@@ -56,11 +56,11 @@ fun CommunicationSettingSelector(communicationSettingViewModel: CommunicationSet
                     Text(text = "for", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Text(text = "1 sc")
+            Text(text = "5 sc")
             Slider(
                 value = time,
                 onValueChange = { time = it },
-                valueRange = 1f..60f,
+                valueRange = 5f..60f,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
                     thumbColor = Purple80,

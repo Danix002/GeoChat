@@ -18,17 +18,22 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.twotone.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,11 +76,18 @@ class MainActivity : ComponentActivity() {
         }
         locationSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
-                startApp()
+                startApp(onRequestPermissions = { permissionManager() })
             } else {
                 accessDenied()
             }
         }
+        permissionManager()
+    }
+
+    /**
+     * TODO: doc
+     */
+    private fun permissionManager(){
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -136,7 +148,7 @@ class MainActivity : ComponentActivity() {
                 builder.build()
             )
         task.addOnSuccessListener {
-            startApp()
+            startApp(onRequestPermissions = { permissionManager() })
         }
         task.addOnFailureListener { exception ->
             if (exception is ResolvableApiException) {
@@ -168,11 +180,11 @@ class MainActivity : ComponentActivity() {
     /**
      * TODO: doc
      */
-    private fun startApp(){
+    private fun startApp(onRequestPermissions: () -> Unit){
         setContent {
             CollektiveExampleAndroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Initialization(modifier = Modifier.padding(innerPadding), fusedLocationClient)
+                    Initialization(Modifier.padding(innerPadding), fusedLocationClient, onRequestPermissions)
                 }
             }
         }
@@ -194,13 +206,37 @@ class MainActivity : ComponentActivity() {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "This app needs access to your location to work, please go to settings and give location access permission and activate it",
-                                textAlign = TextAlign.Center)
+                                text = "This app needs access to your location to work",
+                                textAlign = TextAlign.Center
+                            )
                             Icon(
-                                imageVector = Icons.Filled.Close,
+                                imageVector = Icons.TwoTone.Warning,
                                 contentDescription = "Access denied",
                                 tint = Purple40
                             )
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Button(
+                                    onClick = {
+                                        permissionManager()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Purple40,
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text(text = "Request Permission")
+                                }
+                            }
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Button(
+                                    onClick = {
+                                        startApp(onRequestPermissions = { permissionManager() })
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White)
+                                ) {
+                                    Text(text = "Continue")
+                                }
+                            }
                         }
                     }
                 }
@@ -213,6 +249,7 @@ class MainActivity : ComponentActivity() {
 private fun Initialization(
     modifier: Modifier,
     fusedLocationProviderClient: FusedLocationProviderClient,
+    onRequestPermissions: () -> Unit,
     nearbyDevicesViewModel: NearbyDevicesViewModel = viewModel(),
     communicationSettingViewModel: CommunicationSettingViewModel = viewModel(),
     messagesViewModel: MessagesViewModel = viewModel()
@@ -223,6 +260,7 @@ private fun Initialization(
         messagesViewModel,
         Pages.Home.route,
         modifier,
-        fusedLocationProviderClient
+        fusedLocationProviderClient,
+        onRequestPermissions
     )
 }

@@ -20,7 +20,8 @@ fun SetupNavigationGraph(
     messagesViewModel: MessagesViewModel,
     startDestination: String,
     modifier: Modifier,
-    fusedLocationProviderClient: FusedLocationProviderClient
+    fusedLocationProviderClient: FusedLocationProviderClient,
+    onRequestPermissions: () -> Unit
 ) {
     NavHost(navigationController, startDestination) {
         composable(
@@ -32,7 +33,8 @@ fun SetupNavigationGraph(
                 messagesViewModel,
                 navigationController,
                 modifier,
-                fusedLocationProviderClient
+                fusedLocationProviderClient,
+                onRequestPermissions
             )
         }
         composable(

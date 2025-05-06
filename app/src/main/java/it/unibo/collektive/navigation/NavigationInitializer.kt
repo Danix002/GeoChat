@@ -15,7 +15,8 @@ fun NavigationInitializer(
     messagesViewModel: MessagesViewModel,
     startDestination: String,
     modifier: Modifier,
-    fusedLocationProviderClient: FusedLocationProviderClient
+    fusedLocationProviderClient: FusedLocationProviderClient,
+    onRequestPermissions: () -> Unit
 ) {
     val navigationController = rememberNavController()
     SetupNavigationGraph(
@@ -25,6 +26,7 @@ fun NavigationInitializer(
         messagesViewModel,
         startDestination,
         modifier,
-        fusedLocationProviderClient
+        fusedLocationProviderClient,
+        onRequestPermissions,
     )
 }
