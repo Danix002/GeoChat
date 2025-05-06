@@ -2,6 +2,7 @@ package it.unibo.collektive.ui.components
 
 import android.annotation.SuppressLint
 import android.location.Location
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.OutlinedTextField
@@ -59,6 +60,7 @@ fun SenderMessageBox(
     var isWaitingForLocation by remember { mutableStateOf(false) }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
+            Log.i("SenderMessageBox", "Position: $location")
             if(location != null) {
                 CoroutineScope(Dispatchers.Main).launch {
                     messagesViewModel.listenIntentions(
@@ -92,7 +94,11 @@ fun SenderMessageBox(
     LaunchedEffect(isWaitingForLocation) {
         while(isWaitingForLocation) {
             fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
-                if(location != null) isWaitingForLocation = false
+                Log.i("SenderMessageBox", "Position: $location")
+                if(location != null) {
+                    isWaitingForLocation = false
+                    messagingFlag = false
+                }
             }
             delay(0.5.seconds)
         }
@@ -101,14 +107,13 @@ fun SenderMessageBox(
         ErrorPositionPopUp(
             onDismissClick = {
                 messagesViewModel.setMessagingFlag(flag = false)
-                messagingFlag = false
                 messageTextToSend = ""
                 errorPositionPopup = false
+                messagingFlag = false
             },
             onAllowClick = {
                 onRequestPermissions()
                 messagesViewModel.setMessagingFlag(flag = false)
-                messagingFlag = false
                 messageText = messageTextToSend
                 messageTextToSend = ""
                 isWaitingForLocation = true
