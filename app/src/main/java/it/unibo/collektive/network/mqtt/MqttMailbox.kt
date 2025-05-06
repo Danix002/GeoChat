@@ -62,7 +62,7 @@ class MqttMailbox(
 
     private suspend fun cleanHeartbeatPulse() {
         /**
-         * Soluzione provvisoria al problema di accesso concorrente
+         * Temporary workaround for concurrent access issue
          */
         mutex.withLock {
             cleanupNeighbors(retentionTime)

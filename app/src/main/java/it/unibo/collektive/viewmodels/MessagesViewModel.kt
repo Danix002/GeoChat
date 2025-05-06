@@ -72,7 +72,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             }
         }
         this._messages.value = tmp
-        Log.i("MessagesViewModel", "Message list: ${_messages.value}")
+        //Log.i("MessagesViewModel", "Message list: ${_messages.value}")
     }
 
     /**
@@ -84,7 +84,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             tmp += msg
         }
         this._messages.value = tmp
-        Log.i("MessagesViewModel", "Message list: ${_messages.value}")
+        //Log.i("MessagesViewModel", "Message list: ${_messages.value}")
     }
 
     /**
@@ -108,63 +108,59 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     fun listenIntentions(
         distance: Float,
         nearbyDevicesViewModel: NearbyDevicesViewModel,
-        position: Location?,
+        position: Location,
         userName: String,
         message: String,
         time: LocalDateTime
     ) {
-        if(position != null) {
-            viewModelScope.launch {
-                val coordinates = Point3D(Triple(position.latitude, position.longitude, position.altitude))
-                val program = spreadIntentionToSendMessage(
-                    isSender = messaging.value,
-                    deviceId = nearbyDevicesViewModel.deviceId,
-                    userName = userName,
-                    distance = distance,
-                    position = coordinates,
-                    message = message
-                )
-                while (_online.value) {
-                    val newResult = program.cycle()
-                    _dataFlow.value = newResult
-                    if(newResult.second.first != POSITIVE_INFINITY) {
-                        val tmp = _senders.value.toMutableMap()
-                        tmp += newResult.first to (Triple(newResult.second.first, newResult.second.second, newResult.second.third))
-                        _senders.value = tmp
-                        if(newResult.first == nearbyDevicesViewModel.deviceId && _messaging.value){
-                            var minute = time.minute.toString()
-                            if(time.minute < 10){
-                                minute = "0$minute"
-                            }
-                            addNewMessageToList(
-                                Message(
-                                    text = message,
-                                    userName = userName,
-                                    sender = nearbyDevicesViewModel.deviceId,
-                                    receiver = nearbyDevicesViewModel.deviceId,
-                                    time = "${time.hour}:$minute",
-                                    distance = 0f,
-                                    timestamp = time
-                                )
-                            )
+        viewModelScope.launch {
+            val coordinates = Point3D(Triple(position.latitude, position.longitude, position.altitude))
+            val program = spreadIntentionToSendMessage(
+                isSender = messaging.value,
+                deviceId = nearbyDevicesViewModel.deviceId,
+                userName = userName,
+                distance = distance,
+                position = coordinates,
+                message = message
+            )
+            while (_online.value) {
+                val newResult = program.cycle()
+                _dataFlow.value = newResult
+                if(newResult.second.first != POSITIVE_INFINITY) {
+                    val tmp = _senders.value.toMutableMap()
+                    tmp += newResult.first to (Triple(newResult.second.first, newResult.second.second, newResult.second.third))
+                    _senders.value = tmp
+                    if(newResult.first == nearbyDevicesViewModel.deviceId && _messaging.value){
+                        var minute = time.minute.toString()
+                        if(time.minute < 10){
+                            minute = "0$minute"
                         }
+                        addNewMessageToList(
+                            Message(
+                                text = message,
+                                userName = userName,
+                                sender = nearbyDevicesViewModel.deviceId,
+                                receiver = nearbyDevicesViewModel.deviceId,
+                                time = "${time.hour}:$minute",
+                                distance = 0f,
+                                timestamp = time
+                            )
+                        )
                     }
-                    _devices.value = nearbyDevicesViewModel.getListOfDevices(_senders.value).cycle()
-                    _received.value = nearbyDevicesViewModel.transformDistances(
-                        senders = _senders.value,
-                        devicesValues = _devices.value,
-                        position = coordinates,
-                        time = time
-                    ).cycle()
-                    Log.i("MessagesViewModel", "Received message: ${_received.value}")
-                    if(_received.value.isNotEmpty()) {
-                        addNewMessageToList(_received.value.toMap())
-                    }
-                    delay(1.seconds)
                 }
+                _devices.value = nearbyDevicesViewModel.getListOfDevices(_senders.value).cycle()
+                _received.value = nearbyDevicesViewModel.transformDistances(
+                    senders = _senders.value,
+                    devicesValues = _devices.value,
+                    position = coordinates,
+                    time = time
+                ).cycle()
+                //Log.i("MessagesViewModel", "Received message: ${_received.value}")
+                if(_received.value.isNotEmpty()) {
+                    addNewMessageToList(_received.value.toMap())
+                }
+                delay(1.seconds)
             }
-        }else{
-            throw IllegalStateException("Position could not be retrieved")
         }
     }
 

@@ -12,31 +12,22 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import it.unibo.collektive.ui.theme.Purple80
 import it.unibo.collektive.ui.theme.Purple40
-import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
+import it.unibo.collektive.ui.theme.Purple80
 
 @Composable
-fun UserNameEditPopUp(onDismissClick: () -> Unit, currentUserName: String, nearbyDevicesViewModel: NearbyDevicesViewModel) {
-    var userNameText by remember { mutableStateOf(currentUserName) }
+fun ErrorPositionPopUp(onDismissClick: () -> Unit, onAllowClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f)),
+            .fillMaxSize(),
         contentAlignment = Alignment.Center
     ){
         Column(modifier = Modifier
@@ -45,33 +36,13 @@ fun UserNameEditPopUp(onDismissClick: () -> Unit, currentUserName: String, nearb
             .background(color = Purple80)
         ) {
             Text(
-                text = "Modify your name",
-                fontSize = 24.sp,
+                text = "To send a message the app need to access your location",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
-                color = Color.Black
+                color = Color.Black,
+                textAlign = TextAlign.Center
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-            ) {
-                OutlinedTextField(
-                    modifier = Modifier
-                        .fillMaxWidth(),
-                    singleLine = true,
-                    value = userNameText,
-                    onValueChange = { userNameText = it },
-                    placeholder = { Text(text = "Modify your name...", color = Color.Black) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Purple40,
-                        unfocusedBorderColor = Purple40,
-                        focusedTextColor = Color.Black,
-                        unfocusedTextColor = Color.Black
-                    )
-                )
-            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -81,18 +52,19 @@ fun UserNameEditPopUp(onDismissClick: () -> Unit, currentUserName: String, nearb
             ) {
                 Button(
                     colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White),
-                    onClick = { onDismissClick() }
+                    onClick = {
+                        onAllowClick()
+                    }
                 ) {
-                    Text(text = "Cancel")
+                    Text(text = "Allow")
                 }
                 Button(
                     colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White),
                     onClick = {
-                        nearbyDevicesViewModel.setUserName(userNameText)
                         onDismissClick()
                     }
                 ) {
-                    Text(text = "Confirm")
+                    Text(text = "Cancel")
                 }
             }
         }

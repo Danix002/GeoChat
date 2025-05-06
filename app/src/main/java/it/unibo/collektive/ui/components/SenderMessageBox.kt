@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -40,78 +41,129 @@ import java.time.LocalDateTime
 import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * TODO: doc
+ */
 @SuppressLint("MissingPermission")
 @Composable
-fun SenderMessageBox(messagesViewModel: MessagesViewModel,
-                     communicationSettingViewModel: CommunicationSettingViewModel,
-                     nearbyDevicesViewModel: NearbyDevicesViewModel,
-                     fusedLocationProviderClient: FusedLocationProviderClient){
+fun SenderMessageBox(
+    messagesViewModel: MessagesViewModel,
+    communicationSettingViewModel: CommunicationSettingViewModel,
+    nearbyDevicesViewModel: NearbyDevicesViewModel,
+    fusedLocationProviderClient: FusedLocationProviderClient,
+    onRequestPermissions: () -> Unit
+){
     var messageText by remember { mutableStateOf("") }
     var messageTextToSend by remember { mutableStateOf("") }
     var messagingFlag by remember { mutableStateOf(false)}
-    /**
-     * TODO: doc
-     */
+    var errorPositionPopup by remember { mutableStateOf(false) }
+    var isWaitingForLocation by remember { mutableStateOf(false) }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
-            CoroutineScope(Dispatchers.Main).launch {
-                messagesViewModel.listenIntentions(
-                    distance = if(messagesViewModel.messaging.value){
-                        communicationSettingViewModel.getDistance()
-                    }else{
-                        POSITIVE_INFINITY
-                    },
-                    position = location,
-                    nearbyDevicesViewModel = nearbyDevicesViewModel,
-                    userName = nearbyDevicesViewModel.userName.value,
-                    message = messageTextToSend,
-                    time = LocalDateTime.now()
-                )
-                if (messagesViewModel.messaging.value){
-                    val validationTime = communicationSettingViewModel.getTime().toInt().seconds + messagesViewModel.MINIMUM_TIME_TO_SEND
-                    delay(validationTime)
-                    messagesViewModel.setMessagingFlag(flag = false)
-                    messagingFlag = false
+            Log.i("SenderMessageBox", "Position: $location")
+            if(location != null) {
+                CoroutineScope(Dispatchers.Main).launch {
+                    messagesViewModel.listenIntentions(
+                        distance = if (messagesViewModel.messaging.value) {
+                            communicationSettingViewModel.getDistance()
+                        } else {
+                            POSITIVE_INFINITY
+                        },
+                        position = location,
+                        nearbyDevicesViewModel = nearbyDevicesViewModel,
+                        userName = nearbyDevicesViewModel.userName.value,
+                        message = messageTextToSend,
+                        time = LocalDateTime.now()
+                    )
+                    if (messagesViewModel.messaging.value) {
+                        val validationTime = communicationSettingViewModel.getTime().toInt().seconds
+                        if(validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND){
+                            throw IllegalStateException("The time to send the message is too short")
+                        }
+                        delay(validationTime)
+                        messagesViewModel.setMessagingFlag(flag = false)
+                        messagingFlag = false
+                    }
+                    messageTextToSend = ""
                 }
-                messageTextToSend = ""
+            }else{
+                errorPositionPopup = true
             }
         }
     }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp),
-        contentAlignment = Alignment.Center) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 10.dp, end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Absolute.Center
-        ) {
-            OutlinedTextField(
-                modifier = Modifier.padding(end = 10.dp).heightIn(50.dp, 100.dp).weight(1f),
-                value = messageText,
-                onValueChange = { messageText = it },
-                placeholder = { Text("Write message...") },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Purple40,
-                    unfocusedBorderColor = Purple40
-                )
-            )
-            IconButton(onClick = {
-                messageTextToSend = messageText
-                if(messageTextToSend != "" && !messagingFlag) {
-                    messagesViewModel.setMessagingFlag(flag = true)
-                    messagingFlag = true
-                    messageText = ""
+    LaunchedEffect(isWaitingForLocation) {
+        while(isWaitingForLocation) {
+            fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
+                Log.i("SenderMessageBox", "Position: $location")
+                if(location != null) {
+                    isWaitingForLocation = false
+                    messagingFlag = false
                 }
-            }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send Message",
-                    tint = Purple40
-                )
+            }
+            delay(0.5.seconds)
+        }
+    }
+    if(errorPositionPopup && messagingFlag){
+        ErrorPositionPopUp(
+            onDismissClick = {
+                messagesViewModel.setMessagingFlag(flag = false)
+                messageTextToSend = ""
+                errorPositionPopup = false
+                messagingFlag = false
+            },
+            onAllowClick = {
+                onRequestPermissions()
+                messagesViewModel.setMessagingFlag(flag = false)
+                messageText = messageTextToSend
+                messageTextToSend = ""
+                isWaitingForLocation = true
+                errorPositionPopup = false
+            }
+        )
+    }else {
+        if (isWaitingForLocation) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Purple40)
+            }
+        }else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 10.dp, end = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Absolute.Center
+                ) {
+                    OutlinedTextField(
+                        modifier = Modifier.padding(end = 10.dp).heightIn(50.dp, 100.dp).weight(1f),
+                        value = messageText,
+                        onValueChange = { messageText = it },
+                        placeholder = { Text("Write message...") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Purple40,
+                            unfocusedBorderColor = Purple40
+                        )
+                    )
+                    IconButton(onClick = {
+                        messageTextToSend = messageText
+                        if (messageTextToSend != "" && !messagingFlag) {
+                            messagesViewModel.setMessagingFlag(flag = true)
+                            messagingFlag = true
+                            messageText = ""
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send Message",
+                            tint = Purple40
+                        )
+                    }
+                }
             }
         }
     }
