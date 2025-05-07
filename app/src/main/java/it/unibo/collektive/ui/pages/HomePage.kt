@@ -91,7 +91,18 @@ fun HomePage(
         }
         item {
             Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-                Text("TODO", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "This application implements a global chat with which you can message other people according to a propagation time and distance set by you.\nWhen you send a message the send message button is disabled until the propagation time indicated by you.",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+        item {
+            Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Try and have fun!",
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
         }
         item {

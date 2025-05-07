@@ -105,7 +105,8 @@ class MainActivity : ComponentActivity() {
      * TODO: doc
      */
     private fun permissionManager(start: Boolean){
-        if (ActivityCompat.checkSelfPermission(
+        if (
+            ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED &&
@@ -141,10 +142,12 @@ class MainActivity : ComponentActivity() {
      */
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun requestGeolocalization() {
-        val locationRequest = LocationRequest
-            .Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
-            .setMinUpdateIntervalMillis(5000)
-            .build()
+        val hasFine = ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val locationRequest =
+            if (hasFine)
+            LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000).setMinUpdateIntervalMillis(5000).build()
+        else
+            LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 3000).build()
         val builder = LocationSettingsRequest
             .Builder()
             .addLocationRequest(locationRequest)
@@ -243,7 +246,8 @@ class MainActivity : ComponentActivity() {
      * TODO: doc
      */
     private fun accessDenied(context: Context){
-        if (ActivityCompat.checkSelfPermission(
+        if (
+            ActivityCompat.checkSelfPermission(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED ||
