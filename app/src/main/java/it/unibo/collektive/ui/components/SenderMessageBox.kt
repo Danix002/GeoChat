@@ -5,6 +5,7 @@ import android.location.Location
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.twotone.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.FusedLocationProviderClient
 import it.unibo.collektive.ui.theme.Purple40
@@ -44,7 +47,7 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * TODO: doc
  */
-@SuppressLint("MissingPermission")
+@androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
 fun SenderMessageBox(
     messagesViewModel: MessagesViewModel,
@@ -58,6 +61,7 @@ fun SenderMessageBox(
     var messagingFlag by remember { mutableStateOf(false)}
     var errorPositionPopup by remember { mutableStateOf(false) }
     var isWaitingForLocation by remember { mutableStateOf(false) }
+    var flagTimeout by remember { mutableStateOf(false) }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             Log.i("SenderMessageBox", "Position: $location")
@@ -92,15 +96,21 @@ fun SenderMessageBox(
         }
     }
     LaunchedEffect(isWaitingForLocation) {
-        while(isWaitingForLocation) {
+        var timeout = 25
+        while(isWaitingForLocation && timeout > 0) {
             fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
                 Log.i("SenderMessageBox", "Position: $location")
                 if(location != null) {
                     isWaitingForLocation = false
                     messagingFlag = false
+                    return@addOnSuccessListener
                 }
+                timeout--
             }
             delay(0.5.seconds)
+        }
+        if(timeout == 0){
+            flagTimeout = true
         }
     }
     if(errorPositionPopup && messagingFlag){
@@ -122,8 +132,31 @@ fun SenderMessageBox(
         )
     }else {
         if (isWaitingForLocation) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Purple40)
+            if(!flagTimeout) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Purple40)
+                }
+            }else {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Sorry, your location is not available, try enabling precise location in settings.",
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "If your precise location is active and the error persists try turning GPS off and on again.",
+                            textAlign = TextAlign.Center
+                        )
+                        Icon(
+                            imageVector = Icons.TwoTone.Close,
+                            contentDescription = "Location null",
+                            tint = Purple40
+                        )
+                    }
+                }
             }
         }else {
             Box(
