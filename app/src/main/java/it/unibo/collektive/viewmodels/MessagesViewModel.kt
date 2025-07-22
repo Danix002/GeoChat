@@ -1,7 +1,6 @@
 package it.unibo.collektive.viewmodels
 
 import android.location.Location
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
@@ -164,7 +163,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                     }
                 }
                 _devices.value = getListOfDevices(nearbyDevicesViewModel).cycle()
-                _received.value = transformDistances(
+                _received.value = saveNewMessages(
                     nearbyDevicesViewModel = nearbyDevicesViewModel,
                     position = coordinates,
                     time = time,
@@ -222,7 +221,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     /**
      * TODO: doc
      */
-    private suspend fun transformDistances(
+    private suspend fun saveNewMessages(
         nearbyDevicesViewModel: NearbyDevicesViewModel,
         position: Point3D,
         time: LocalDateTime,
