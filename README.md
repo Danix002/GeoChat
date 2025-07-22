@@ -1,4 +1,4 @@
-# Collektive MQTT Application
+# 🌍 GeoChat
 
 This application leverages the [**Collektive**](https://github.com/Collektive/collektive) **library** to model a decentralized communication system based on spatial proximity. Connected devices can send and receive messages within a global chat, provided they are within a certain distance of each other.
 
