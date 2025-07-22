@@ -71,13 +71,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
     private lateinit var locationPermissionRequest: ActivityResultLauncher<Array<String>>
     private lateinit var locationCallback: LocationCallback
+    private var isFirstLaunch = true
 
     /**
      * TODO: doc
      */
     override fun onResume() {
         super.onResume()
-        permissionManager(start = false)
+        if (!isFirstLaunch) {
+            permissionManager(start = false)
+        }
     }
 
     /**
@@ -92,7 +95,7 @@ class MainActivity : ComponentActivity() {
         }
         locationSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
-                startApp(onRequestPermissions = { permissionManager(start = false) })
+                startApp()
             } else {
                 requestPermissionOutOfApp()
             }
@@ -172,7 +175,7 @@ class MainActivity : ComponentActivity() {
                 builder.build()
             )
         task.addOnSuccessListener {
-            startApp(onRequestPermissions = { permissionManager(start = false) })
+            startApp()
         }
         task.addOnFailureListener { exception ->
             if (exception is ResolvableApiException) {
@@ -204,11 +207,22 @@ class MainActivity : ComponentActivity() {
     /**
      * TODO: doc
      */
-    private fun startApp(onRequestPermissions: () -> Unit){
+    private fun startApp(){
+        isFirstLaunch = false
         setContent {
             CollektiveExampleAndroidTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Initialization(Modifier.padding(innerPadding), fusedLocationClient, onRequestPermissions)
+                    if (ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        requestPermissionOutOfApp()
+                    }
+                    Initialization(Modifier.padding(innerPadding), fusedLocationClient)
                 }
             }
         }
@@ -291,11 +305,11 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
 private fun Initialization(
     modifier: Modifier,
     fusedLocationProviderClient: FusedLocationProviderClient,
-    onRequestPermissions: () -> Unit,
     nearbyDevicesViewModel: NearbyDevicesViewModel = viewModel(),
     communicationSettingViewModel: CommunicationSettingViewModel = viewModel(),
     messagesViewModel: MessagesViewModel = viewModel()
@@ -306,7 +320,6 @@ private fun Initialization(
         messagesViewModel,
         Pages.Home.route,
         modifier,
-        fusedLocationProviderClient,
-        onRequestPermissions
+        fusedLocationProviderClient
     )
 }

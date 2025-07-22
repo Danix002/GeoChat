@@ -1,11 +1,9 @@
 package it.unibo.collektive.ui.components
 
-import android.annotation.SuppressLint
 import android.location.Location
 import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,17 +17,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.twotone.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.FusedLocationProviderClient
 import it.unibo.collektive.ui.theme.Purple40
@@ -53,8 +50,7 @@ fun SenderMessageBox(
     messagesViewModel: MessagesViewModel,
     communicationSettingViewModel: CommunicationSettingViewModel,
     nearbyDevicesViewModel: NearbyDevicesViewModel,
-    fusedLocationProviderClient: FusedLocationProviderClient,
-    onRequestPermissions: () -> Unit
+    fusedLocationProviderClient: FusedLocationProviderClient
 ){
     var messageText by remember { mutableStateOf("") }
     var messageTextToSend by remember { mutableStateOf("") }
@@ -62,6 +58,7 @@ fun SenderMessageBox(
     var errorPositionPopup by remember { mutableStateOf(false) }
     var isWaitingForLocation by remember { mutableStateOf(false) }
     var flagTimeout by remember { mutableStateOf(false) }
+    var remainingTime by remember { mutableStateOf(0.seconds) }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             Log.i("SenderMessageBox", "Position: $location")
@@ -84,7 +81,11 @@ fun SenderMessageBox(
                         if(validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND){
                             throw IllegalStateException("The time to send the message is too short")
                         }
-                        delay(validationTime)
+                        remainingTime = validationTime
+                        while (remainingTime > 0.seconds) {
+                            delay(1.seconds)
+                            remainingTime = remainingTime.minus(1.seconds)
+                        }
                         messagesViewModel.setMessagingFlag(flag = false)
                         messagingFlag = false
                     }
@@ -113,58 +114,20 @@ fun SenderMessageBox(
             flagTimeout = true
         }
     }
-    if(errorPositionPopup && messagingFlag){
-        ErrorPositionPopUp(
-            onDismissClick = {
-                messagesViewModel.setMessagingFlag(flag = false)
-                messageTextToSend = ""
-                errorPositionPopup = false
-                messagingFlag = false
-            },
-            onAllowClick = {
-                onRequestPermissions()
-                messagesViewModel.setMessagingFlag(flag = false)
-                messageText = messageTextToSend
-                messageTextToSend = ""
-                isWaitingForLocation = true
-                errorPositionPopup = false
-            }
-        )
-    }else {
-        if (isWaitingForLocation) {
-            if(!flagTimeout) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Purple40)
-                }
+    if (isWaitingForLocation && !flagTimeout) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Purple40)
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(100.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if(errorPositionPopup && messagingFlag){
+                ErrorPositionPopUp()
             }else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Sorry, your location is not available, try enabling precise location in settings.",
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "If your precise location is active and the error persists try turning GPS off and on again.",
-                            textAlign = TextAlign.Center
-                        )
-                        Icon(
-                            imageVector = Icons.TwoTone.Close,
-                            contentDescription = "Location null",
-                            tint = Purple40
-                        )
-                    }
-                }
-            }
-        }else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
-                contentAlignment = Alignment.Center
-            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
@@ -182,18 +145,26 @@ fun SenderMessageBox(
                             unfocusedBorderColor = Purple40
                         )
                     )
-                    IconButton(onClick = {
-                        messageTextToSend = messageText
-                        if (messageTextToSend != "" && !messagingFlag) {
-                            messagesViewModel.setMessagingFlag(flag = true)
-                            messagingFlag = true
-                            messageText = ""
+                    if (!messagingFlag) {
+                        IconButton(onClick = {
+                            messageTextToSend = messageText
+                            if (messageTextToSend.isNotBlank()) {
+                                messagesViewModel.setMessagingFlag(flag = true)
+                                messagingFlag = true
+                                messageText = ""
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send Message",
+                                tint = Purple40
+                            )
                         }
-                    }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send Message",
-                            tint = Purple40
+                    } else {
+                        Text(
+                            text = "Wait $remainingTime",
+                            modifier = Modifier.padding(end = 10.dp),
+                            color = Purple40
                         )
                     }
                 }

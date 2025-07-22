@@ -12,6 +12,7 @@ import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 
+@androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
 fun SetupNavigationGraph(
     navigationController: NavHostController,
@@ -21,7 +22,6 @@ fun SetupNavigationGraph(
     startDestination: String,
     modifier: Modifier,
     fusedLocationProviderClient: FusedLocationProviderClient,
-    onRequestPermissions: () -> Unit
 ) {
     NavHost(navigationController, startDestination) {
         composable(
@@ -33,8 +33,7 @@ fun SetupNavigationGraph(
                 messagesViewModel,
                 navigationController,
                 modifier,
-                fusedLocationProviderClient,
-                onRequestPermissions
+                fusedLocationProviderClient
             )
         }
         composable(

@@ -90,22 +90,6 @@ fun HomePage(
             }
         }
         item {
-            Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-                Text(
-                    "This application implements a global chat with which you can message other people according to a propagation time and distance set by you.\nWhen you send a message the send message button is disabled until the propagation time indicated by you.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        }
-        item {
-            Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "Try and have fun!",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-        }
-        item {
             if (dataFlow.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -129,7 +113,7 @@ fun HomePage(
                         navigationController.navigate(Pages.Chat.route)
                         nearbyDevicesViewModel.setOnlineStatus(flag = false)
                         messagesViewModel.setOnlineStatus(flag = true)
-                              },
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Purple40, contentColor = Color.White)
                 ) {
                     Text(text = "Start chatting")

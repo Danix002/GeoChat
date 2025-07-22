@@ -31,7 +31,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private val _userName = MutableStateFlow("User")
     private val _online = MutableStateFlow(true)
-    private val _devicesInChat= MutableStateFlow(0)
+    val _devicesInChat= MutableStateFlow(0)
 
     /**
      * The connection state.
@@ -110,49 +110,4 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
             }
         }
     }
-
-    /**
-     * TODO: doc
-     */
-    suspend fun getListOfDevices(sender: Map<Uuid, Triple<Float, String, String>>): Collektive<Uuid, Map<Uuid, Triple<Float, String, String>>> =
-        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
-            mapNeighborhood { id ->
-                sender[id] ?: Triple(-1f, userName.value, "")
-            }.toMap()
-        }.also {
-            delay(1.seconds)
-            _devicesInChat.value = it.cycle().size
-        }
-
-    /**
-     * TODO: doc
-     */
-    suspend fun transformDistances(
-        senders: Map<Uuid, Triple<Float, String, String>>,
-        devicesValues: Map<Uuid, Triple<Float, String, String>>,
-        position: Point3D,
-        time: LocalDateTime,
-        userName: String = _userName.value
-    ) : Collektive<Uuid, Map<Uuid, List<Params>>> =
-        Collektive(deviceId, MqttMailbox(deviceId, "broker.hivemq.com", dispatcher = dispatcher)) {
-            neighboring(devicesValues).alignedMap(euclideanDistance3D(position)) { _: Uuid, deviceValues: Map<Uuid, Triple<Float, String, String>>, distance: Double ->
-                deviceValues.entries.map { (sender, messagingParams) ->
-                    Params(
-                        sender to messagingParams.second,
-                        localId to userName,
-                        messagingParams.first,
-                        distance,
-                        messagingParams.third,
-                        time,
-                        senders.containsKey(sender) && messagingParams.first != -1f && sender != localId
-                    )
-                }
-            }.toMap()
-                .filterKeys { senders.containsKey(it) && it != localId }
-                .mapValues { (key, list) ->
-                    list.filter { it.isSenderValues && it.to.first == key }
-                }
-        }.also {
-            delay(2.seconds)
-        }
 }

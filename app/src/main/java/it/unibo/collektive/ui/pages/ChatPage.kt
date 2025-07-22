@@ -18,11 +18,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.twotone.Delete
+import androidx.compose.material.icons.twotone.Info
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -33,6 +40,7 @@ import it.unibo.collektive.ui.theme.Purple40
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 
+@androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
 fun ChatPage(
     communicationSettingViewModel: CommunicationSettingViewModel,
@@ -40,10 +48,16 @@ fun ChatPage(
     messagesViewModel: MessagesViewModel,
     navigationController: NavHostController,
     modifier: Modifier,
-    fusedLocationProviderClient: FusedLocationProviderClient,
-    onRequestPermissions: () -> Unit
+    fusedLocationProviderClient: FusedLocationProviderClient
 ) {
     val devicesInChat by nearbyDevicesViewModel.devicesInChat.collectAsState()
+    var isLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(isLoading) {
+        if (isLoading) {
+            messagesViewModel.clearListOfMessages()
+            isLoading = false
+        }
+    }
     Box(modifier = modifier.then(Modifier.padding(20.dp))) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -80,23 +94,42 @@ fun ChatPage(
                     )
                 }
                 Text(text = "Back to Home")
-                Box(modifier = Modifier.fillMaxWidth().padding(end = 15.dp), contentAlignment = Alignment.CenterEnd) {
-                    Text(text = " [$devicesInChat] devices in this chat")
+                IconButton(
+                    onClick = { isLoading = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.TwoTone.Delete,
+                        contentDescription = "Clear Chat",
+                        tint = Purple40
+                    )
+                }
+                Text(text = "Clear Chat")
+                Box(modifier = Modifier.fillMaxWidth().padding(end = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                    Text(text = " [$devicesInChat] Online")
                 }
             }
-            Chat(
-                nearbyDevicesViewModel,
-                messagesViewModel,
-                Modifier.weight(1f),
-                communicationSettingViewModel
-            )
-            SenderMessageBox(
-                messagesViewModel,
-                communicationSettingViewModel,
-                nearbyDevicesViewModel,
-                fusedLocationProviderClient,
-                onRequestPermissions
-            )
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = Purple40)
+                }
+            } else {
+                Chat(
+                    nearbyDevicesViewModel,
+                    messagesViewModel,
+                    Modifier.weight(1f),
+                    communicationSettingViewModel
+                )
+
+                SenderMessageBox(
+                    messagesViewModel,
+                    communicationSettingViewModel,
+                    nearbyDevicesViewModel,
+                    fusedLocationProviderClient
+                )
+            }
         }
     }
 }

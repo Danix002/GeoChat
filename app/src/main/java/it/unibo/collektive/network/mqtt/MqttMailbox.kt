@@ -110,7 +110,7 @@ class MqttMailbox(
             }
         }
 
-        private const val APP_NAMESPACE = "CollektiveExampleAndroid"
+        private const val APP_NAMESPACE = "GeoChat"
         private const val HEARTBEAT_WILD_CARD = "$APP_NAMESPACE/heartbeat/+"
         private fun deviceTopic(deviceId: Uuid) = "$APP_NAMESPACE/device/$deviceId"
         private fun heartbeatTopic(deviceId: Uuid) = "$APP_NAMESPACE/heartbeat/$deviceId"
