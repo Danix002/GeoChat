@@ -20,6 +20,7 @@ import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.encodeToString
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 
 /**
@@ -31,10 +32,13 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     private val retentionTime: Duration,
 ) : Mailbox<ID> {
     protected data class TimedMessage<ID : Any>(val message: Message<ID, Any?>, val timestamp: Instant)
-    protected data class TimedHeartbeat<ID : Any>(val deviceId: ID, val timestamp: Instant)
 
     private val messages = mutableMapOf<ID, TimedMessage<ID>>()
-    private val neighbors = mutableSetOf<TimedHeartbeat<ID>>()
+    /**
+     * Thread-safe neighbor data structure, implemented as ConcurrentHashMap
+     * that maps each deviceId to the timestamp of the last heartbeat received.
+     */
+    private val neighbors = ConcurrentHashMap<ID, Instant>()
     private val factory = object : SerializedMessageFactory<ID, Any?>(serializer) {}
     private val neighborMessageFlow = MutableSharedFlow<Message<ID, Any?>>()
 
@@ -53,22 +57,21 @@ abstract class AbstractSerializerMailbox<ID : Any>(
      * Add the [deviceId] to the list of neighbors.
      */
     fun addNeighbor(deviceId: ID) {
-        neighbors.removeIf { it.deviceId == deviceId }
-        neighbors.add(TimedHeartbeat(deviceId, Clock.System.now()))
+        neighbors[deviceId] = Clock.System.now()
     }
 
     /**
      * Remove neighbors that have not sent a heartbeat in a while.
      */
     fun cleanupNeighbors(neighborRetention: Duration) {
-        val nowInstant = Clock.System.now()
-        neighbors.removeIf { nowInstant - it.timestamp > neighborRetention }
+        val now = Clock.System.now()
+        neighbors.entries.removeIf { (_, timestamp) -> now - timestamp > neighborRetention }
     }
 
     /**
      * Returns the list of neighbors.
      */
-    fun neighbors(): Set<ID> = neighbors.map { it.deviceId }.toSet()
+    fun neighbors(): Set<ID> = neighbors.keys
 
     final override val inMemory: Boolean
         get() = false

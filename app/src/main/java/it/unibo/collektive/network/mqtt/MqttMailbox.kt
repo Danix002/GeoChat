@@ -12,8 +12,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -32,7 +30,6 @@ class MqttMailbox(
     private val retentionTime: Duration,
     private val dispatcher: CoroutineDispatcher,
 ) : AbstractSerializerMailbox<Uuid>(deviceId, serializer, retentionTime) {
-    private val mutex = Mutex()
     private val internalScope = CoroutineScope(dispatcher)
     private val mqttClient = MkttClient(dispatcher) {
         brokerUrl = host
@@ -61,14 +58,9 @@ class MqttMailbox(
     }
 
     private suspend fun cleanHeartbeatPulse() {
-        /**
-         * Temporary workaround for concurrent access issue
-         */
-        mutex.withLock {
-            cleanupNeighbors(retentionTime)
-            delay(retentionTime)
-            cleanHeartbeatPulse()
-        }
+        cleanupNeighbors(retentionTime)
+        delay(retentionTime)
+        cleanHeartbeatPulse()
     }
 
     private suspend fun receiveNeighborMessages() {

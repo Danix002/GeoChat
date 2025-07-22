@@ -65,7 +65,7 @@ fun HomePage(
     LazyColumn(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Collektive MQTT", modifier = Modifier.weight(1f), style = MaterialTheme.typography.displaySmall)
+                Text("\uD83C\uDF0D GeoChat", modifier = Modifier.weight(1f), style = MaterialTheme.typography.displaySmall)
                 Box(modifier = Modifier.size(24.dp).background(color = connectionColor, shape = CircleShape))
             }
         }
