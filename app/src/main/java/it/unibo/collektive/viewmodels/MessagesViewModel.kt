@@ -84,7 +84,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      */
     private fun addNewMessageToList(msg: Message) {
         val tmp = this._messages.value.toMutableList()
-        if(!tmp.any { it.id == msg.id } && !this._deletedMessagesIds.value.contains(msg)){
+        if(!tmp.any { it.id == msg.id } && !this._deletedMessagesIds.value.contains(msg) && msg.text != ""){
             tmp += msg
         }
         this._messages.value = tmp

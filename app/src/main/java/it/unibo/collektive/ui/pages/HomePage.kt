@@ -85,11 +85,6 @@ fun HomePage(
             }
         }
         item {
-            Column (modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-                Text("Rules", style = MaterialTheme.typography.displaySmall)
-            }
-        }
-        item {
             if (dataFlow.isEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
