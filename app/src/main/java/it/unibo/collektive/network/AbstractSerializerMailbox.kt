@@ -33,7 +33,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
 ) : Mailbox<ID> {
     protected data class TimedMessage<ID : Any>(val message: Message<ID, Any?>, val timestamp: Instant)
 
-    private val messages = mutableMapOf<ID, TimedMessage<ID>>()
+    protected val messages = mutableMapOf<ID, TimedMessage<ID>>()
     /**
      * Thread-safe neighbor data structure, implemented as ConcurrentHashMap
      * that maps each deviceId to the timestamp of the last heartbeat received.

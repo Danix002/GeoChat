@@ -122,7 +122,6 @@ fun ChatPage(
                     Modifier.weight(1f),
                     communicationSettingViewModel
                 )
-
                 SenderMessageBox(
                     messagesViewModel,
                     communicationSettingViewModel,

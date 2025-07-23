@@ -11,7 +11,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -44,27 +47,40 @@ class MqttMailbox(
         internalScope.launch(dispatcher) { receiveNeighborMessages() }
     }
 
-    private suspend fun sendHeartbeatPulse() {
-        mqttClient.publish(heartbeatTopic(deviceId), byteArrayOf())
-        delay(1.seconds)
-        sendHeartbeatPulse()
+    private suspend fun sendHeartbeatPulse() = coroutineScope {
+        while (isActive) {
+            mqttClient.publish(heartbeatTopic(deviceId), byteArrayOf())
+            delay(1.seconds)
+        }
     }
 
     private suspend fun receiveHeartbeatPulse() {
-        mqttClient.subscribe(HEARTBEAT_WILD_CARD).collect {
+        mqttClient.subscribe(HEARTBEAT_WILD_CARD)
+            .buffer(128)
+            .collect {
             val neighborDeviceId = Uuid.parse(it.topic.split("/").last())
             addNeighbor(neighborDeviceId)
         }
     }
 
-    private suspend fun cleanHeartbeatPulse() {
-        cleanupNeighbors(retentionTime)
-        delay(retentionTime)
-        cleanHeartbeatPulse()
+    private suspend fun cleanHeartbeatPulse() = coroutineScope {
+        while (isActive) {
+            cleanupNeighbors(retentionTime)
+            cleanupMessages() // nuova funzione consigliata
+            delay(retentionTime)
+        }
     }
 
+    private fun cleanupMessages() {
+        val now = Clock.System.now()
+        messages.entries.removeIf { (_, msg) -> now - msg.timestamp > retentionTime }
+    }
+
+
     private suspend fun receiveNeighborMessages() {
-        mqttClient.subscribe(deviceTopic(deviceId)).collect {
+        mqttClient.subscribe(deviceTopic(deviceId))
+            .buffer(128)
+            .collect {
             try {
                 val deserialized = serializer.decodeSerialMessage<Uuid>(it.payload)
                 deliverableReceived(deserialized)
