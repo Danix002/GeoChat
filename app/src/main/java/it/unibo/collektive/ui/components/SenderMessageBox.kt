@@ -174,7 +174,7 @@ fun SenderMessageBox(
             contentAlignment = Alignment.Center
         ) {
             if(errorPositionPopup && messagingFlag){
-                ErrorPositionPopUp()
+                GeneralWarning(content = "You are in reading mode because your location is unavailable")
             }else {
                 Row(
                     modifier = Modifier

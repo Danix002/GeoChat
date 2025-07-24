@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import it.unibo.collektive.ui.theme.Purple40
 
 @Composable
-fun ErrorPositionPopUp() {
+fun GeneralWarning(content: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -40,12 +40,12 @@ fun ErrorPositionPopUp() {
             ) {
                 Icon(
                     imageVector = Icons.TwoTone.Info,
-                    contentDescription = "Location not avaible",
+                    contentDescription = "General warning",
                     tint = Purple40
                 )
             }
             Text(
-                text = "You are in reading mode because your location is unavailable",
+                text = content,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 8.dp),

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import androidx.navigation.NavHostController
 import it.unibo.collektive.navigation.Pages
+import it.unibo.collektive.ui.components.GeneralWarning
 import it.unibo.collektive.ui.components.UserNameEditPopUp
 import it.unibo.collektive.ui.theme.Purple40
 import it.unibo.collektive.viewmodels.MessagesViewModel
@@ -83,6 +84,9 @@ fun HomePage(
                     )
                 }
             }
+        }
+        item {
+            GeneralWarning(content = "This operation may take a few minutes")
         }
         item {
             if (dataFlow.isEmpty()) {
