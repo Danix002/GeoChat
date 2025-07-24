@@ -536,7 +536,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 }
             }.toMap()
                 .mapValues { (key, list) ->
-                    list.filter { it.isSenderValues }
+                    list.filter { it.isSenderValues && it.distance <= it.distanceForMessaging }
                 }
         }
 }
