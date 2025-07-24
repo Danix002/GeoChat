@@ -19,11 +19,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
 import kotlin.Float.Companion.POSITIVE_INFINITY
-import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
+import java.time.LocalDateTime
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * ViewModel responsible for handling message sending, receiving, and processing
@@ -38,32 +43,28 @@ import kotlin.uuid.Uuid
  * @param dispatcher Coroutine dispatcher to perform asynchronous tasks (default: Dispatchers.IO)
  */
 class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
-
     private val IP_HOST = "192.168.1.6"
 
     // Flow holding the current data pair of (device ID, message triple)
     private val _dataFlow = MutableStateFlow<Pair<Uuid?, Triple<Float, String, String>?>>(null to null)
 
     // Map of senders currently detected (deviceId -> (distance, username, message))
-    private val _senders = MutableStateFlow<Map<Uuid, Triple<Float, String, String>>>(emptyMap())
+    private val _senders = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
 
     // Map of devices discovered nearby (deviceId -> (distance, username, message))
-    private val _devices = MutableStateFlow<Map<Uuid, Triple<Float, String, String>>>(emptyMap())
+    private val _devices = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
 
     // Flow indicating if the device is online in the chat network
     private val _online = MutableStateFlow(false)
 
     // Flow indicating if the user is currently sending messages
-    private val _messaging = MutableStateFlow(false)
+    private val _sendFlag = MutableStateFlow(false)
 
     // Flow holding the list of messages received and sent locally
-    private val _messages = MutableStateFlow<List<Message>>(emptyList())
+    private val _messages = MutableStateFlow<MutableList<Message>>(mutableListOf())
 
     // Map holding messages received from each sender
-    private val _received = MutableStateFlow<Map<Uuid, List<Params>>>(emptyMap())
-
-    // List of messages marked as deleted (to avoid re-adding them)
-    private val _deletedMessagesIds = MutableStateFlow<List<Message>>(emptyList())
+    private val _received = MutableStateFlow<MutableMap<Uuid, List<Params>>>(mutableMapOf())
 
     // Number of devices in chat
     private val _counterDevices = MutableStateFlow(0)
@@ -72,6 +73,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     private val _messageToSend = MutableStateFlow("")
 
     private val _position = MutableStateFlow<Location?>(null)
+    private val _coordinates = MutableStateFlow<Point3D?>(null)
 
     /**
      * The number of devices in the chat.
@@ -92,7 +94,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * Public immutable flows exposed to UI.
      */
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
-    val messaging: StateFlow<Boolean> get() = _messaging
+    val sendFlag: StateFlow<Boolean> get() = _sendFlag
 
     /**
      * Integrates newly received messages into the current local message list,
@@ -139,7 +141,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 existing.sender == msg.sender &&
                     existing.receiver == msg.receiver &&
                     existing.text == msg.text
-            } || _deletedMessagesIds.value.contains(msg)
+            }
         }
         this._messages.value = tmp
     }
@@ -151,7 +153,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      */
     private fun addNewMessage(msg: Message) {
         val currentMessages = _messages.value.toMutableList()
-        if (msg.text.isNotEmpty() && currentMessages.none { it.id == msg.id } && !_deletedMessagesIds.value.contains(msg)) {
+        if (msg.text.isNotEmpty() && currentMessages.none { it.id == msg.id }) {
             currentMessages.add(msg)
             _messages.value = currentMessages
         }
@@ -162,11 +164,26 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * This is useful for resetting the UI or clearing chat history.
      */
     suspend fun clearMessages() {
-        val deleted = _deletedMessagesIds.value.toMutableList()
-        deleted.addAll(_messages.value)
-        _deletedMessagesIds.value = deleted
-        _messages.value = emptyList()
+        _messages.value.clear()
         delay(TIME_FOR_DELETE_MESSAGES)
+    }
+
+    /**
+     * Initializes a coroutine that runs indefinitely in the ViewModel scope,
+     * periodically clearing the list of messages every five minutes.
+     *
+     * This mechanism helps control memory usage by regularly purging
+     * stored messages from the internal cache, preventing unbounded growth.
+     * The coroutine is launched on the provided dispatcher and will be
+     * automatically cancelled when the ViewModel is cleared.
+     */
+    init {
+        viewModelScope.launch(dispatcher) {
+            while (true) {
+                _messages.value.clear()
+                delay(5.minutes)
+            }
+        }
     }
 
     /**
@@ -184,8 +201,8 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      *
      * @param flag true if sending messages, false otherwise
      */
-    fun setMessagingFlag(flag: Boolean) {
-        _messaging.value = flag
+    fun setSendFlag(flag: Boolean) {
+        _sendFlag.value = flag
     }
 
     /**
@@ -206,8 +223,8 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * @param location the new [Location] object to be assigned, or `null` if no location is available.
      */
     fun setLocation(location: Location?) {
-        Log.i("MessagesViewModel", "Position: $location")
         _position.value = location
+        _coordinates.value = Point3D(Triple(_position.value!!.latitude, _position.value!!.longitude, _position.value!!.altitude))
     }
 
     /**
@@ -225,7 +242,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         message: String,
         time: LocalDateTime
     ) {
-        if (_messaging.value) {
+        if (_sendFlag.value) {
             val minuteFormatted = time.minute.toString().padStart(2, '0')
             addNewMessage(
                 Message(
@@ -269,42 +286,44 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         time: LocalDateTime
     ) {
         viewModelScope.launch(Dispatchers.Default) {
-            val coordinates = Point3D(Triple(_position.value!!.latitude, _position.value!!.longitude, _position.value!!.altitude))
             val program = spreadAndListen(
-                isSender = _messaging.value,
+                isSender = _sendFlag.value,
                 deviceId = nearbyDevicesViewModel.deviceId,
                 userName = userName,
                 distance = distance,
-                position = coordinates,
+                position = _coordinates.value!!,
                 message = _messageToSend.value
             )
-            while (_online.value) {
-                _senders.value = emptyMap()
-                _devices.value = emptyMap()
-                _received.value = emptyMap()
+            flow {
+                while (_online.value) {
+                    emit(Unit)
+                    delay(1.seconds)
+                }
+            }.onEach {
+                _senders.value.clear()
+                _devices.value.clear()
+                _received.value.clear()
                 val newResult = program.cycle()
                 _dataFlow.value = newResult
                 if(newResult.second.first != POSITIVE_INFINITY) {
-                    val tmp = _senders.value.toMutableMap()
                     val allSender = listenOtherSources(nearbyDevicesViewModel.deviceId, newResult).cycle()
-                    tmp.putAll(allSender.map { it.value.first to it.value.second })
-                    _senders.value = tmp
+                    _senders.value.putAll(allSender.map { it.value.first to it.value.second })
                 }
-                _devices.value = getListOfDevices(nearbyDevicesViewModel).cycle()
-                Log.d("MessagesViewModel-Listen", "Devices ${_devices.value}")
-                _received.value += saveNewMessages(
-                    nearbyDevicesViewModel = nearbyDevicesViewModel,
-                    position = coordinates,
-                    time = time,
-                    userName = nearbyDevicesViewModel.userName.value,
-                    devices = _devices.value,
-                    senders = _senders.value
-                ).cycle()
+                _devices.value.putAll(getListOfDevices(nearbyDevicesViewModel).cycle())
+                _received.value.putAll(
+                    saveNewMessages(
+                        nearbyDevicesViewModel = nearbyDevicesViewModel,
+                        position = _coordinates.value!!,
+                        time = time,
+                        userName = nearbyDevicesViewModel.userName.value,
+                        devices = _devices.value,
+                        senders = _senders.value
+                    ).cycle()
+                )
                 if(_received.value.isNotEmpty()) {
                     addNewMessagesToList(_received.value.toMap())
                 }
-                delay(1.seconds)
-            }
+            }.flowOn(Dispatchers.Default).launchIn(this)
         }
     }
 
@@ -332,20 +351,23 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         userName: String
     ) {
         viewModelScope.launch(Dispatchers.Default) {
-            val coordinates = Point3D(Triple(_position.value!!.latitude, _position.value!!.longitude, _position.value!!.altitude))
             val program = spreadAndListen(
-                isSender = _messaging.value,
+                isSender = _sendFlag.value,
                 deviceId = nearbyDevicesViewModel.deviceId,
                 userName = userName,
                 distance = distance,
-                position = coordinates,
+                position = _coordinates.value!!,
                 message = _messageToSend.value
             )
-            while (_messaging.value) {
+            flow {
+                while (_sendFlag.value) {
+                    emit(Unit)
+                    delay(1.seconds)
+                }
+            }.onEach {
                 val newResult = program.cycle()
                 _dataFlow.value = newResult
-                delay(1.seconds)
-            }
+            }.flowOn(Dispatchers.Default).launchIn(this)
         }
     }
 

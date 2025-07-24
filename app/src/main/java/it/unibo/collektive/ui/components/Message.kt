@@ -12,6 +12,7 @@ import it.unibo.collektive.ui.theme.LightGray
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +34,7 @@ fun Message(message: Message, isSentByUser: Boolean, communicationSettingViewMod
                 .padding(8.dp)
                 .background(LightGray, RoundedCornerShape(20.dp))
                 .padding(12.dp)
+                .widthIn(max = 215.dp)
         ) {
             Column {
                 if(!isSentByUser) {
@@ -46,7 +48,8 @@ fun Message(message: Message, isSentByUser: Boolean, communicationSettingViewMod
                 Text(
                     text = message.text,
                     fontSize = 16.sp,
-                    color = Color.Black)
+                    color = Color.Black
+                )
                 Text(
                     text = "sent: ${message.time}, distance: ${communicationSettingViewModel.formatDistance(message.distance)}",
                     fontSize = 12.sp,

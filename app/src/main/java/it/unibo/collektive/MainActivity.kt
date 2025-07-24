@@ -74,7 +74,14 @@ class MainActivity : ComponentActivity() {
     private var isFirstLaunch = true
 
     /**
-     * TODO: doc
+     * Called when the activity is resumed.
+     *
+     * If this is not the first launch of the activity, it invokes
+     * the permission manager with `start = false` to possibly adjust
+     * permission-related state without reinitializing the whole permission flow.
+     *
+     * This helps manage permissions gracefully when the app returns to foreground,
+     * avoiding unnecessary restarts of permission requests on subsequent resumes.
      */
     override fun onResume() {
         super.onResume()
@@ -84,7 +91,13 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * TODO: doc
+     * Called when the activity is no longer visible to the user.
+     *
+     * This function stops location updates by removing the
+     * registered location callback from the fused location provider.
+     *
+     * It helps to conserve resources and battery by stopping location tracking
+     * when the activity is stopped or goes into the background.
      */
     override fun onStop() {
         super.onStop()
@@ -93,7 +106,22 @@ class MainActivity : ComponentActivity() {
 
 
     /**
-     * TODO: doc
+     * Called when the activity is first created.
+     *
+     * This function initializes key components and permissions required
+     * for location tracking and message management in the app.
+     *
+     * Specifically, it:
+     * - Enables edge-to-edge layout for immersive UI experience.
+     * - Initializes the [MessagesViewModel] to manage message-related data.
+     * - Sets up the fused location provider client for location services.
+     * - Defines a location callback to update the ViewModel with new location data.
+     * - Registers activity result launchers to handle location settings changes and permission requests.
+     * - Handles the logic for permission requests, starting location tracking if permissions are granted,
+     *   or requesting permissions outside the app if denied.
+     * - Initiates permission checks and location tracking by calling [permissionManager].
+     *
+     * @param savedInstanceState The saved state of the activity, if any.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -133,9 +161,6 @@ class MainActivity : ComponentActivity() {
         permissionManager(start = true)
     }
 
-    /**
-     * TODO: doc
-     */
     private fun permissionManager(start: Boolean){
         if (
             ActivityCompat.checkSelfPermission(
@@ -157,9 +182,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * TODO: doc
-     */
     private fun requestPermissions() {
         locationPermissionRequest.launch(
             arrayOf(
@@ -169,9 +191,6 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /**
-     * TODO: doc
-     */
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun requestGeolocalization() {
         val hasFine = ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -208,9 +227,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * TODO: doc
-     */
     @RequiresPermission(anyOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun startLocationUpdates(locationRequest: LocationRequest) {
         fusedLocationClient.requestLocationUpdates(
@@ -220,9 +236,6 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /**
-     * TODO: doc
-     */
     private fun startApp(){
         isFirstLaunch = false
         setContent {
@@ -274,9 +287,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * TODO: doc
-     */
     private fun requestPermissionOutOfApp() {
         setContent {
             CollektiveExampleAndroidTheme {

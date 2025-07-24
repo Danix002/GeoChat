@@ -103,7 +103,7 @@ fun SenderMessageBox(
             if(location != null) {
                 CoroutineScope(Dispatchers.Main).launch {
                     messagesViewModel.setLocation(location)
-                    if (messagesViewModel.messaging.value) {
+                    if (messagesViewModel.sendFlag.value) {
                         messagesViewModel.addSentMessageToList(
                             nearbyDevicesViewModel = nearbyDevicesViewModel,
                             userName = nearbyDevicesViewModel.userName.value,
@@ -125,7 +125,7 @@ fun SenderMessageBox(
                             delay(1.seconds)
                             remainingTime = remainingTime.minus(1.seconds)
                         }
-                        messagesViewModel.setMessagingFlag(flag = false)
+                        messagesViewModel.setSendFlag(flag = false)
                         messagesViewModel.setOnlineStatus(flag = true)
                         messagingFlag = false
                         messageTextToSend = ""
@@ -198,7 +198,7 @@ fun SenderMessageBox(
                             messageTextToSend = messageText
                             if (messageTextToSend.isNotBlank()) {
                                 messagesViewModel.setOnlineStatus(flag = false)
-                                messagesViewModel.setMessagingFlag(flag = true)
+                                messagesViewModel.setSendFlag(flag = true)
                                 messagingFlag = true
                                 messageText = ""
                             }

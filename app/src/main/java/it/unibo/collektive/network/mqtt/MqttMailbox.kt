@@ -8,10 +8,11 @@ import it.unibo.collektive.networking.Message
 import it.unibo.collektive.networking.SerializedMessage
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -19,6 +20,7 @@ import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration
+
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -33,7 +35,7 @@ class MqttMailbox(
     private val retentionTime: Duration,
     private val dispatcher: CoroutineDispatcher,
 ) : AbstractSerializerMailbox<Uuid>(deviceId, serializer, retentionTime) {
-    private val internalScope = CoroutineScope(dispatcher)
+    private val internalScope = CoroutineScope(dispatcher + SupervisorJob())
     private val mqttClient = MkttClient(dispatcher) {
         brokerUrl = host
         this.port = port
@@ -41,22 +43,24 @@ class MqttMailbox(
 
     private suspend fun initializeMqttClient() {
         mqttClient.connect()
-        internalScope.launch(dispatcher) { receiveHeartbeatPulse() }
-        internalScope.launch(dispatcher) { sendHeartbeatPulse() }
+        internalScope.launch { receiveHeartbeatPulse() }
+        internalScope.launch { sendHeartbeatPulse() }
         internalScope.launch { cleanHeartbeatPulse() }
-        internalScope.launch(dispatcher) { receiveNeighborMessages() }
+        internalScope.launch { receiveNeighborMessages() }
     }
+
+    private val emptyPayload = ByteArray(0)
 
     private suspend fun sendHeartbeatPulse() = coroutineScope {
         while (isActive) {
-            mqttClient.publish(heartbeatTopic(deviceId), byteArrayOf())
-            delay(1.seconds)
+            mqttClient.publish(heartbeatTopic(deviceId), emptyPayload)
+            delay(60.seconds)
         }
     }
 
     private suspend fun receiveHeartbeatPulse() {
         mqttClient.subscribe(HEARTBEAT_WILD_CARD)
-            .buffer(128)
+            .conflate()
             .collect {
             val neighborDeviceId = Uuid.parse(it.topic.split("/").last())
             addNeighbor(neighborDeviceId)
@@ -79,7 +83,7 @@ class MqttMailbox(
 
     private suspend fun receiveNeighborMessages() {
         mqttClient.subscribe(deviceTopic(deviceId))
-            .buffer(128)
+            .conflate()
             .collect {
             try {
                 val deserialized = serializer.decodeSerialMessage<Uuid>(it.payload)
@@ -118,7 +122,7 @@ class MqttMailbox(
             host: String,
             port: Int = 1883,
             serializer: SerialFormat = Json,
-            retentionTime: Duration = 5.seconds,
+            retentionTime: Duration = 90.seconds,
             dispatcher: CoroutineDispatcher,
         ): MqttMailbox = coroutineScope {
             MqttMailbox(deviceId, host, port, serializer, retentionTime, dispatcher).apply {

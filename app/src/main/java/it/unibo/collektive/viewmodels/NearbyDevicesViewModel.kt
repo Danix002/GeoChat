@@ -11,6 +11,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -99,14 +103,18 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * Start the Collektive program.
      */
     fun startCollektiveProgram() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
-            while (_online.value) {
+            flow {
+                while (_online.value) {
+                    emit(Unit)
+                    delay(1.seconds)
+                }
+            }.onEach {
                 val newResult = program.cycle()
                 _dataFlow.value = newResult
-                delay(1.seconds)
-            }
+            }.flowOn(Dispatchers.Default).launchIn(this)
         }
     }
 }
