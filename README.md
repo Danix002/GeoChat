@@ -64,7 +64,7 @@ To stop:
 
 Copy your configuration file to the Mosquitto config directory:
 ```bash
-   sudo cp mosquitto.conf mosquitto/config/mosquitto.conf
+   sudo cp mosquitto/config/mosquitto.conf /etc/mosquitto/mosquitto.conf
 ```
 
 Start the Mosquitto service:
