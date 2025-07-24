@@ -37,7 +37,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     /**
      * Minimum propagation time required for the entire process of forwarding a message.
      */
-    val MINIMUM_TIME_TO_SEND = 5.seconds
+    val MINIMUM_TIME_TO_SEND = 7.seconds
     val TIME_FOR_DELETE_MESSAGES = 2.seconds
 
     /**
@@ -116,6 +116,31 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         this._messaging.value = flag
     }
 
+    fun addSendedMessageToList(
+        nearbyDevicesViewModel: NearbyDevicesViewModel,
+        userName: String,
+        message: String,
+        time: LocalDateTime
+    ){
+        if(_messaging.value){
+            var minute = time.minute.toString()
+            if(time.minute < 10){
+                minute = "0$minute"
+            }
+            addNewMessageToList(
+                Message(
+                    text = message,
+                    userName = userName,
+                    sender = nearbyDevicesViewModel.deviceId,
+                    receiver = nearbyDevicesViewModel.deviceId,
+                    time = "${time.hour}:$minute",
+                    distance = 0f,
+                    timestamp = time
+                )
+            )
+        }
+    }
+
     /**
      * TODO: doc
      */
@@ -142,25 +167,9 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 _dataFlow.value = newResult
                 if(newResult.second.first != POSITIVE_INFINITY) {
                     val tmp = _senders.value.toMutableMap()
-                    tmp += newResult.first to (Triple(newResult.second.first, newResult.second.second, newResult.second.third))
+                    val allSender = listenOtherSources(nearbyDevicesViewModel.deviceId, newResult).cycle()
+                    tmp.putAll(allSender.map { it.value.first to it.value.second })
                     _senders.value = tmp
-                    if(newResult.first == nearbyDevicesViewModel.deviceId && _messaging.value){
-                        var minute = time.minute.toString()
-                        if(time.minute < 10){
-                            minute = "0$minute"
-                        }
-                        addNewMessageToList(
-                            Message(
-                                text = message,
-                                userName = userName,
-                                sender = nearbyDevicesViewModel.deviceId,
-                                receiver = nearbyDevicesViewModel.deviceId,
-                                time = "${time.hour}:$minute",
-                                distance = 0f,
-                                timestamp = time
-                            )
-                        )
-                    }
                 }
                 _devices.value = getListOfDevices(nearbyDevicesViewModel).cycle()
                 _received.value = saveNewMessages(
@@ -176,6 +185,16 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             }
         }
     }
+
+    private suspend fun listenOtherSources(
+        deviceId: Uuid,
+        sender:  Pair<Uuid, Triple<Float, String, String>>
+    ): Collektive<Uuid, Map<Uuid, Pair<Uuid, Triple<Float, String, String>>>> =
+        Collektive(deviceId, MqttMailbox(deviceId, host = "broker.hivemq.com", dispatcher = dispatcher)) {
+            neighboring(sender).toMap()
+        }.also {
+            delay(2.seconds)
+        }
 
     /**
      * TODO: doc

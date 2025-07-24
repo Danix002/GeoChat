@@ -64,6 +64,12 @@ fun SenderMessageBox(
             Log.i("SenderMessageBox", "Position: $location")
             if(location != null) {
                 CoroutineScope(Dispatchers.Main).launch {
+                    messagesViewModel.addSendedMessageToList(
+                        nearbyDevicesViewModel = nearbyDevicesViewModel,
+                        userName = nearbyDevicesViewModel.userName.value,
+                        message = messageTextToSend,
+                        time = LocalDateTime.now()
+                    )
                     messagesViewModel.listenIntentions(
                         distance = if (messagesViewModel.messaging.value) {
                             communicationSettingViewModel.getDistance()
