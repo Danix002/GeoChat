@@ -1,7 +1,6 @@
 package it.unibo.collektive.viewmodels
 
 import android.location.Location
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
