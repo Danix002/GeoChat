@@ -1,16 +1,10 @@
 package it.unibo.collektive.viewmodels
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
-import it.unibo.collektive.aggregate.Field
-import it.unibo.collektive.aggregate.api.mapNeighborhood
 import it.unibo.collektive.aggregate.api.neighboring
-import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
-import it.unibo.collektive.stdlib.util.Point3D
-import it.unibo.collektive.stdlib.util.euclideanDistance3D
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -18,8 +12,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
-import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -31,7 +23,8 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private val _userName = MutableStateFlow("User")
     private val _online = MutableStateFlow(true)
-    val _devicesInChat= MutableStateFlow(0)
+
+    private val IP_HOST = "192.168.1.6"
 
     /**
      * The connection state.
@@ -52,11 +45,6 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * The set of nearby devices.
      */
     val dataFlow: StateFlow<Set<Uuid>> = _dataFlow.asStateFlow()
-
-    /**
-     * The number of devices in the chat.
-     */
-    val devicesInChat: StateFlow<Int> = _devicesInChat.asStateFlow()
 
     /**
      * The connection state.
@@ -89,10 +77,21 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     }
 
     /**
-     * TODO: doc
+     * Creates a Collektive program that identifies the neighboring devices of the local node.
+     *
+     * This suspending function builds a Collektive computation that leverages MQTT-based
+     * communication to retrieve the set of UUIDs corresponding to all neighboring devices
+     * currently visible to the local device.
+     *
+     * The function uses the `neighboring` construct to inspect the local communication
+     * neighborhood, extracting and returning the UUIDs of the devices with which the local
+     * node can interact.
+     *
+     * @return A Collektive program that computes a set of UUIDs representing
+     *         the neighboring devices of the current local node.
      */
      private suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
-        Collektive(deviceId, MqttMailbox(deviceId, host = "broker.hivemq.com", dispatcher = dispatcher)) {
+        Collektive(deviceId, MqttMailbox(deviceId, host = IP_HOST, dispatcher = dispatcher)) {
             neighboring(localId).neighbors.toSet()
         }
 

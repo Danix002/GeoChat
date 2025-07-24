@@ -50,11 +50,11 @@ fun ChatPage(
     modifier: Modifier,
     fusedLocationProviderClient: FusedLocationProviderClient
 ) {
-    val devicesInChat by nearbyDevicesViewModel.devicesInChat.collectAsState()
+    val devicesInChat by messagesViewModel.devicesInChat.collectAsState()
     var isLoading by remember { mutableStateOf(false) }
     LaunchedEffect(isLoading) {
         if (isLoading) {
-            messagesViewModel.clearListOfMessages()
+            messagesViewModel.clearMessages()
             isLoading = false
         }
     }

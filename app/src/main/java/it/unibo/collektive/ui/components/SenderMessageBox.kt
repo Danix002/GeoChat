@@ -23,7 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +41,47 @@ import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * TODO: doc
+ * Composable UI component that enables the user to compose and send a message to nearby devices.
+ *
+ * This function coordinates user interaction for initiating message broadcasting. Upon sending,
+ * the function retrieves the current device location, constructs the message, and triggers
+ * a distributed propagation process using the Collektive framework via the associated
+ * `MessagesViewModel`.
+ *
+ * The message is transmitted if location permissions are granted and a valid location is available.
+ * The sending session is time-bound, during which the UI informs the user to wait until the
+ * message dissemination is complete. If location retrieval fails or times out, an appropriate
+ * error popup is shown.
+ *
+ * ### Parameters
+ * - `messagesViewModel`: The `MessagesViewModel` responsible for managing message propagation,
+ *   sending state, and received data.
+ * - `communicationSettingViewModel`: ViewModel handling the communication parameters such as
+ *   maximum message range and message lifetime.
+ * - `nearbyDevicesViewModel`: ViewModel containing information about the local device and
+ *   discovered nearby devices.
+ * - `fusedLocationProviderClient`: Location provider used to fetch the device’s most recent
+ *   known geographic location.
+ *
+ * ### Behavior
+ * - Shows an input text field for the user to compose a message.
+ * - When the user presses the send button:
+ *   - It verifies if a message is non-empty.
+ *   - It requests the device’s last known location.
+ *   - If a valid location is retrieved:
+ *     - It adds the message to the local message list.
+ *     - It invokes `listenIntentions` to start propagating the message.
+ *     - The user interface switches to a waiting state based on the message timeout duration.
+ *   - If no location is available, an error popup is shown.
+ * - If location retrieval takes too long (timeout after 25 attempts with 0.5s delay), it triggers a timeout state.
+ * - While waiting for the sending session to end, it prevents repeated message sending.
+ *
+ * ### Permissions
+ * Requires either `ACCESS_FINE_LOCATION` or `ACCESS_COARSE_LOCATION`.
+ *
+ * @see MessagesViewModel
+ * @see CommunicationSettingViewModel
+ * @see NearbyDevicesViewModel
  */
 @androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
@@ -61,30 +100,24 @@ fun SenderMessageBox(
     var remainingTime by remember { mutableStateOf(0.seconds) }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
-            Log.i("SenderMessageBox", "Position: $location")
             if(location != null) {
                 CoroutineScope(Dispatchers.Main).launch {
-                    messagesViewModel.addSendedMessageToList(
-                        nearbyDevicesViewModel = nearbyDevicesViewModel,
-                        userName = nearbyDevicesViewModel.userName.value,
-                        message = messageTextToSend,
-                        time = LocalDateTime.now()
-                    )
-                    messagesViewModel.listenIntentions(
-                        distance = if (messagesViewModel.messaging.value) {
-                            communicationSettingViewModel.getDistance()
-                        } else {
-                            POSITIVE_INFINITY
-                        },
-                        position = location,
-                        nearbyDevicesViewModel = nearbyDevicesViewModel,
-                        userName = nearbyDevicesViewModel.userName.value,
-                        message = messageTextToSend,
-                        time = LocalDateTime.now()
-                    )
+                    messagesViewModel.setLocation(location)
                     if (messagesViewModel.messaging.value) {
+                        messagesViewModel.addSentMessageToList(
+                            nearbyDevicesViewModel = nearbyDevicesViewModel,
+                            userName = nearbyDevicesViewModel.userName.value,
+                            message = messageTextToSend,
+                            time = LocalDateTime.now()
+                        )
+                        messagesViewModel.setMessageToSend(messageTextToSend)
+                        messagesViewModel.send(
+                            distance = communicationSettingViewModel.getDistance(),
+                            nearbyDevicesViewModel = nearbyDevicesViewModel,
+                            userName = nearbyDevicesViewModel.userName.value
+                        )
                         val validationTime = communicationSettingViewModel.getTime().toInt().seconds
-                        if(validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND){
+                        if (validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND) {
                             throw IllegalStateException("The time to send the message is too short")
                         }
                         remainingTime = validationTime
@@ -93,9 +126,18 @@ fun SenderMessageBox(
                             remainingTime = remainingTime.minus(1.seconds)
                         }
                         messagesViewModel.setMessagingFlag(flag = false)
+                        messagesViewModel.setOnlineStatus(flag = true)
                         messagingFlag = false
+                        messageTextToSend = ""
+                        messagesViewModel.setMessageToSend(messageTextToSend)
+                    }else{
+                        messagesViewModel.listen(
+                            distance = POSITIVE_INFINITY,
+                            nearbyDevicesViewModel = nearbyDevicesViewModel,
+                            userName = nearbyDevicesViewModel.userName.value,
+                            time = LocalDateTime.now()
+                        )
                     }
-                    messageTextToSend = ""
                 }
             }else{
                 errorPositionPopup = true
@@ -155,6 +197,7 @@ fun SenderMessageBox(
                         IconButton(onClick = {
                             messageTextToSend = messageText
                             if (messageTextToSend.isNotBlank()) {
+                                messagesViewModel.setOnlineStatus(flag = false)
                                 messagesViewModel.setMessagingFlag(flag = true)
                                 messagingFlag = true
                                 messageText = ""

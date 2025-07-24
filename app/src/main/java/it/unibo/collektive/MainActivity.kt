@@ -3,7 +3,6 @@
 package it.unibo.collektive
 
 import android.Manifest
-import android.content.Context
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
@@ -71,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationSettingsLauncher: ActivityResultLauncher<IntentSenderRequest>
     private lateinit var locationPermissionRequest: ActivityResultLauncher<Array<String>>
     private lateinit var locationCallback: LocationCallback
+    private lateinit var messagesViewModel: MessagesViewModel
     private var isFirstLaunch = true
 
     /**
@@ -86,12 +86,27 @@ class MainActivity : ComponentActivity() {
     /**
      * TODO: doc
      */
+    override fun onStop() {
+        super.onStop()
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+    }
+
+
+    /**
+     * TODO: doc
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        messagesViewModel = androidx.lifecycle.ViewModelProvider(this)[MessagesViewModel::class.java]
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) { }
+            override fun onLocationResult(locationResult: LocationResult) {
+                val location = locationResult.lastLocation
+                if (location != null) {
+                    messagesViewModel.setLocation(location)
+                }
+            }
         }
         locationSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
@@ -175,6 +190,7 @@ class MainActivity : ComponentActivity() {
                 builder.build()
             )
         task.addOnSuccessListener {
+            startLocationUpdates(locationRequest)
             startApp()
         }
         task.addOnFailureListener { exception ->
@@ -222,7 +238,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         requestPermissionOutOfApp()
                     }
-                    Initialization(Modifier.padding(innerPadding), fusedLocationClient)
+                    Initialization(Modifier.padding(innerPadding), fusedLocationClient, messagesViewModel)
                 }
             }
         }
@@ -310,9 +326,9 @@ class MainActivity : ComponentActivity() {
 private fun Initialization(
     modifier: Modifier,
     fusedLocationProviderClient: FusedLocationProviderClient,
+    messagesViewModel: MessagesViewModel,
     nearbyDevicesViewModel: NearbyDevicesViewModel = viewModel(),
-    communicationSettingViewModel: CommunicationSettingViewModel = viewModel(),
-    messagesViewModel: MessagesViewModel = viewModel()
+    communicationSettingViewModel: CommunicationSettingViewModel = viewModel()
 ) {
     NavigationInitializer(
         communicationSettingViewModel,

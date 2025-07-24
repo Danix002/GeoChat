@@ -29,7 +29,7 @@ import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 
 @Composable
 fun CommunicationSettingSelector(communicationSettingViewModel: CommunicationSettingViewModel) {
-    var time by remember { mutableFloatStateOf(7f) }
+    var time by remember { mutableFloatStateOf(5f) }
     var distance by remember { mutableFloatStateOf(2000f) }
 
     LaunchedEffect(distance) {
@@ -56,11 +56,11 @@ fun CommunicationSettingSelector(communicationSettingViewModel: CommunicationSet
                     Text(text = "for", fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Text(text = "7 sc")
+            Text(text = "5 sc")
             Slider(
                 value = time,
                 onValueChange = { time = it },
-                valueRange = 7f..60f,
+                valueRange = 5f..60f,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
                     thumbColor = Purple80,

@@ -66,7 +66,7 @@ class MqttMailbox(
     private suspend fun cleanHeartbeatPulse() = coroutineScope {
         while (isActive) {
             cleanupNeighbors(retentionTime)
-            cleanupMessages() // nuova funzione consigliata
+            cleanupMessages()
             delay(retentionTime)
         }
     }
