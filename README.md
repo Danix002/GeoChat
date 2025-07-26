@@ -49,6 +49,7 @@ Install a local MQTT broker accessible at `localhost:1883` to be used in apps or
 ```shell
     mosquitto -v -c "mosquitto/config/mosquitto.conf"
 ```
+Don't close the terminal where you ran this command.
 
 Then open a terminal with administrator privileges and run:
 ```shell
@@ -66,6 +67,7 @@ Copy your configuration file to the Mosquitto config directory:
 ```bash
    sudo cp mosquitto/config/mosquitto.conf /etc/mosquitto/mosquitto.conf
 ```
+Don't close the terminal where you ran this command.
 
 Start the Mosquitto service:
 ```bash
