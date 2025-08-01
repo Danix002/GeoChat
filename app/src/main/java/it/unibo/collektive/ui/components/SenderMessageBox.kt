@@ -99,13 +99,6 @@ fun SenderMessageBox(
     var flagTimeout by remember { mutableStateOf(false) }
     var remainingTime by remember { mutableStateOf(0.seconds) }
 
-    LaunchedEffect(Unit) {
-        messagesViewModel.listenAndSend(
-            nearbyDevicesViewModel = nearbyDevicesViewModel,
-            userName = nearbyDevicesViewModel.userName.value,
-            time = LocalDateTime.now()
-        )
-    }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             if(location != null) {
