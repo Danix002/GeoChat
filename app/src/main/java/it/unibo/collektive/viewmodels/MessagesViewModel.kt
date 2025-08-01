@@ -18,6 +18,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.uuid.Uuid
@@ -296,14 +300,14 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * @param userName The username of the current user
      * @param time The LocalDateTime timestamp used for recording message receipt time
      */
-    /*fun listenAndSend(
+    fun listenAndSend(
         distance: Float,
         nearbyDevicesViewModel: NearbyDevicesViewModel,
         userName: String,
         time: LocalDateTime
     ) {
         viewModelScope.launch(Dispatchers.Default) {
-            _program = spreadAndListen(
+            val program = spreadAndListen(
                 isSender = _sendFlag.value,
                 deviceId = nearbyDevicesViewModel.deviceId,
                 userName = userName,
@@ -318,12 +322,12 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 }
             }.onEach {
                 clear()
-                val newResult = _program!!.cycle()
+                val newResult = program.cycle()
                 _dataFlow.value = newResult
                 workflow(newResult, nearbyDevicesViewModel, time)
             }.flowOn(Dispatchers.Default).launchIn(this)
         }
-    }*/
+    }
 
     /**
      * Starts two concurrent programs for message propagation: one for listening and one for sending.
