@@ -152,6 +152,7 @@ fun SenderMessageBox(
             flagTimeout = true
         }
     }
+
     if (isWaitingForLocation && !flagTimeout) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Purple40)

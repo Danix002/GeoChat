@@ -57,12 +57,14 @@ fun HomePage(
     }
     var editPopup by remember { mutableStateOf(false) }
     var userName by remember { mutableStateOf(nearbyDevicesViewModel.userName.value) }
+
     LaunchedEffect(Unit) {
         nearbyDevicesViewModel.startCollektiveProgram()
     }
     LaunchedEffect(editPopup) {
         userName = nearbyDevicesViewModel.userName.value
     }
+
     LazyColumn(modifier = modifier.then(Modifier.padding(20.dp)), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

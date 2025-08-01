@@ -71,6 +71,7 @@ fun ChatPage(
             isLoading = false
         }
     }
+
     Box(modifier = modifier.then(Modifier.padding(20.dp))) {
         Column(
             modifier = Modifier.fillMaxSize(),
