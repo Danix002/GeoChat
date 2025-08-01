@@ -19,7 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.twotone.Delete
-import androidx.compose.material.icons.twotone.Info
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.delay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +53,11 @@ fun ChatPage(
 ) {
     val devicesInChat by messagesViewModel.devicesInChat.collectAsState()
     var isLoading by remember { mutableStateOf(false) }
+    var isReadyToShowChat by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(1.seconds)
+        isReadyToShowChat = true
+    }
     LaunchedEffect(isLoading) {
         if (isLoading) {
             messagesViewModel.clearMessages()
@@ -108,7 +114,7 @@ fun ChatPage(
                     Text(text = " [$devicesInChat] Online")
                 }
             }
-            if (isLoading) {
+            if (isLoading || !isReadyToShowChat) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
