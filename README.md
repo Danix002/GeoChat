@@ -18,7 +18,7 @@ This guide explains how to install and run a **local MQTT broker** using **Eclip
 
 ## ✅ Goal
 
-Install a local MQTT broker accessible at `localhost:1883` to be used in apps or scripts.
+Install a local MQTT broker accessible at `localhost:1883`.
 
 ---
 
