@@ -32,7 +32,7 @@ data class Message(
     val time: String,
     val distance: Float,
     val timestamp: LocalDateTime,
-    val id: Int = generateId(text, userName, sender, receiver, time)
+    val id: Int = generateId(text, userName, sender, receiver, time, timestamp)
 ) {
     companion object {
         fun generateId(
@@ -40,9 +40,10 @@ data class Message(
             userName: String,
             sender: Uuid,
             receiver: Uuid,
-            time: String
+            time: String,
+            timestamp: LocalDateTime
         ): Int {
-            return "$text|$userName|$sender|$receiver|$time".hashCode()
+            return "$text|$userName|$sender|$receiver|$time|$timestamp".hashCode()
         }
     }
 }

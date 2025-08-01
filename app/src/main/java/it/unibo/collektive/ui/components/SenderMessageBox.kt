@@ -22,67 +22,27 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.FusedLocationProviderClient
+import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.ui.theme.Purple40
 import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
-import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * Composable UI component that enables the user to compose and send a message to nearby devices.
- *
- * This function coordinates user interaction for initiating message broadcasting. Upon sending,
- * the function retrieves the current device location, constructs the message, and triggers
- * a distributed propagation process using the Collektive framework via the associated
- * `MessagesViewModel`.
- *
- * The message is transmitted if location permissions are granted and a valid location is available.
- * The sending session is time-bound, during which the UI informs the user to wait until the
- * message dissemination is complete. If location retrieval fails or times out, an appropriate
- * error popup is shown.
- *
- * ### Parameters
- * - `messagesViewModel`: The `MessagesViewModel` responsible for managing message propagation,
- *   sending state, and received data.
- * - `communicationSettingViewModel`: ViewModel handling the communication parameters such as
- *   maximum message range and message lifetime.
- * - `nearbyDevicesViewModel`: ViewModel containing information about the local device and
- *   discovered nearby devices.
- * - `fusedLocationProviderClient`: Location provider used to fetch the device’s most recent
- *   known geographic location.
- *
- * ### Behavior
- * - Shows an input text field for the user to compose a message.
- * - When the user presses the send button:
- *   - It verifies if a message is non-empty.
- *   - It requests the device’s last known location.
- *   - If a valid location is retrieved:
- *     - It adds the message to the local message list.
- *     - It invokes `listenIntentions` to start propagating the message.
- *     - The user interface switches to a waiting state based on the message timeout duration.
- *   - If no location is available, an error popup is shown.
- * - If location retrieval takes too long (timeout after 25 attempts with 0.5s delay), it triggers a timeout state.
- * - While waiting for the sending session to end, it prevents repeated message sending.
- *
- * ### Permissions
- * Requires either `ACCESS_FINE_LOCATION` or `ACCESS_COARSE_LOCATION`.
- *
- * @see MessagesViewModel
- * @see CommunicationSettingViewModel
- * @see NearbyDevicesViewModel
- */
 @androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
 fun SenderMessageBox(
@@ -92,57 +52,47 @@ fun SenderMessageBox(
     fusedLocationProviderClient: FusedLocationProviderClient
 ){
     var messageText by remember { mutableStateOf("") }
-    var messageTextToSend by remember { mutableStateOf("") }
     var messagingFlag by remember { mutableStateOf(false)}
     var errorPositionPopup by remember { mutableStateOf(false) }
     var isWaitingForLocation by remember { mutableStateOf(false) }
     var flagTimeout by remember { mutableStateOf(false) }
-    var remainingTime by remember { mutableStateOf(0.seconds) }
+    val pendingMessages by remember { derivedStateOf { messagesViewModel.pendingMessages } }
 
-    LaunchedEffect(messagingFlag) {
-        fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
-            if(location != null) {
+    LaunchedEffect(pendingMessages.size) {
+        fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
+            if (location != null) {
                 CoroutineScope(Dispatchers.Main).launch {
                     messagesViewModel.setLocation(location)
-                    if (messagesViewModel.sendFlag.value) {
-                        val time = LocalDateTime.now()
-                        messagesViewModel.addSentMessageToList(
-                            nearbyDevicesViewModel = nearbyDevicesViewModel,
-                            userName = nearbyDevicesViewModel.userName.value,
-                            message = messageTextToSend,
-                            time = time
-                        )
-                        messagesViewModel.setTime(time)
-                        messagesViewModel.setMessageToSend(messageTextToSend)
-                        messagesViewModel.setDistance(communicationSettingViewModel.getDistance())
-                        messagesViewModel.setSpreadingTime(communicationSettingViewModel.getTime().toInt())
-                        val validationTime = communicationSettingViewModel.getTime().toInt().seconds
-                        if (validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND) {
-                            throw IllegalStateException("The time to send the message is too short")
+                    coroutineScope {
+                        messagesViewModel.pendingMessages.forEach { message ->
+                            launch {
+                                messagesViewModel.listenAndSend(
+                                    nearbyDevicesViewModel,
+                                    nearbyDevicesViewModel.userName.value,
+                                    message
+                                )
+                                val validationTime = message.spreadingTime.seconds
+                                if (validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND) {
+                                    throw IllegalStateException("The time to send the message is too short")
+                                }
+                                delay(validationTime)
+                            }
+                            messagesViewModel.dequeueMessage()
                         }
-                        remainingTime = validationTime
-                        while (remainingTime > 0.seconds) {
-                            delay(1.seconds)
-                            remainingTime = remainingTime.minus(1.seconds)
-                        }
-                        messagingFlag = false
-                        messageTextToSend = ""
-                        messagesViewModel.setMessageToSend(messageTextToSend)
-                        messagesViewModel.setDistance(POSITIVE_INFINITY)
-                        messagesViewModel.setSpreadingTime(0)
-                        messagesViewModel.setSendFlag(flag = messagingFlag)
                     }
+                    messagingFlag = false
+                    messagesViewModel.setSendFlag(flag = false)
                 }
-            }else{
+            } else {
                 errorPositionPopup = true
             }
         }
+
     }
     LaunchedEffect(isWaitingForLocation) {
         var timeout = 25
         while(isWaitingForLocation && timeout > 0) {
             fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
-                Log.i("SenderMessageBox", "Position: $location")
                 if(location != null) {
                     isWaitingForLocation = false
                     messagingFlag = false
@@ -188,26 +138,29 @@ fun SenderMessageBox(
                             unfocusedBorderColor = Purple40
                         )
                     )
-                    if (!messagingFlag) {
-                        IconButton(onClick = {
-                            messageTextToSend = messageText
-                            if (messageTextToSend.isNotBlank()) {
+                    IconButton(onClick = {
+                        val time = LocalDateTime.now()
+                        val distance = communicationSettingViewModel.getDistance()
+                        val spreadingTime = communicationSettingViewModel.getTime().toInt()
+                        if (messageText.isNotBlank()) {
+                            messagesViewModel.enqueueMessage(messageText, time, distance, spreadingTime)
+                            if (!messagingFlag) {
                                 messagesViewModel.setSendFlag(flag = true)
                                 messagingFlag = true
-                                messageText = ""
                             }
-                        }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send Message",
-                                tint = Purple40
+                            messagesViewModel.addSentMessageToList(
+                                nearbyDevicesViewModel = nearbyDevicesViewModel,
+                                userName = nearbyDevicesViewModel.userName.value,
+                                message = messageText,
+                                time = time
                             )
+                            messageText = ""
                         }
-                    } else {
-                        Text(
-                            text = "Wait $remainingTime",
-                            modifier = Modifier.padding(end = 10.dp),
-                            color = Purple40
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send Message",
+                            tint = Purple40
                         )
                     }
                 }
