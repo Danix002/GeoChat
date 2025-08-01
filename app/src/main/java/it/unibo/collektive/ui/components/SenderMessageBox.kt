@@ -105,12 +105,14 @@ fun SenderMessageBox(
                 CoroutineScope(Dispatchers.Main).launch {
                     messagesViewModel.setLocation(location)
                     if (messagesViewModel.sendFlag.value) {
+                        val time = LocalDateTime.now()
                         messagesViewModel.addSentMessageToList(
                             nearbyDevicesViewModel = nearbyDevicesViewModel,
                             userName = nearbyDevicesViewModel.userName.value,
                             message = messageTextToSend,
-                            time = LocalDateTime.now()
+                            time = time
                         )
+                        messagesViewModel.setTime(time)
                         messagesViewModel.setMessageToSend(messageTextToSend)
                         messagesViewModel.setDistance(communicationSettingViewModel.getDistance())
                         messagesViewModel.setSpreadingTime(communicationSettingViewModel.getTime().toInt())
@@ -123,10 +125,12 @@ fun SenderMessageBox(
                             delay(1.seconds)
                             remainingTime = remainingTime.minus(1.seconds)
                         }
-                        messagesViewModel.setSendFlag(flag = false)
                         messagingFlag = false
                         messageTextToSend = ""
                         messagesViewModel.setMessageToSend(messageTextToSend)
+                        messagesViewModel.setDistance(POSITIVE_INFINITY)
+                        messagesViewModel.setSpreadingTime(0)
+                        messagesViewModel.setSendFlag(flag = messagingFlag)
                     }
                 }
             }else{

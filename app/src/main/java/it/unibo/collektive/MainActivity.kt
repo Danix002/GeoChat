@@ -104,7 +104,6 @@ class MainActivity : ComponentActivity() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 
-
     /**
      * Called when the activity is first created.
      *
