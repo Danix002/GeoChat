@@ -139,11 +139,9 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             )
         }.filterNot { msg ->
             tmp.any { existing ->
-                (
-                    existing.sender == msg.sender &&
-                    existing.receiver == msg.receiver &&
-                    existing.text == msg.text
-                ) || msg.text.isEmpty()
+                existing.sender == msg.sender &&
+                existing.receiver == msg.receiver &&
+                existing.text == msg.text
             }
         }
         this._messages.value = tmp
@@ -366,7 +364,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             }
             launch {
                 while (_online.value) {
-                    if (_sendFlag.value && _distance.value.isFinite() && _spreadingTime.value > 0) {
+                    if (_sendFlag.value && _distance.value.isFinite() && _spreadingTime.value > 0 && _messageToSend.value.isNotEmpty()) {
                         val senderProgram = spreadAndListen(
                             isSender = true,
                             deviceId = nearbyDevicesViewModel.deviceId,
