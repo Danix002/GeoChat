@@ -98,6 +98,14 @@ fun SenderMessageBox(
     var isWaitingForLocation by remember { mutableStateOf(false) }
     var flagTimeout by remember { mutableStateOf(false) }
     var remainingTime by remember { mutableStateOf(0.seconds) }
+
+    LaunchedEffect(Unit) {
+        messagesViewModel.listenAndSend(
+            nearbyDevicesViewModel = nearbyDevicesViewModel,
+            userName = nearbyDevicesViewModel.userName.value,
+            time = LocalDateTime.now()
+        )
+    }
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             if(location != null) {
@@ -111,11 +119,8 @@ fun SenderMessageBox(
                             time = LocalDateTime.now()
                         )
                         messagesViewModel.setMessageToSend(messageTextToSend)
-                        messagesViewModel.send(
-                            distance = communicationSettingViewModel.getDistance(),
-                            nearbyDevicesViewModel = nearbyDevicesViewModel,
-                            userName = nearbyDevicesViewModel.userName.value
-                        )
+                        messagesViewModel.setDistance(communicationSettingViewModel.getDistance())
+                        messagesViewModel.setSpreadingTime(communicationSettingViewModel.getTime().toInt())
                         val validationTime = communicationSettingViewModel.getTime().toInt().seconds
                         if (validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND) {
                             throw IllegalStateException("The time to send the message is too short")
@@ -126,17 +131,9 @@ fun SenderMessageBox(
                             remainingTime = remainingTime.minus(1.seconds)
                         }
                         messagesViewModel.setSendFlag(flag = false)
-                        messagesViewModel.setOnlineStatus(flag = true)
                         messagingFlag = false
                         messageTextToSend = ""
                         messagesViewModel.setMessageToSend(messageTextToSend)
-                    }else{
-                        messagesViewModel.listen(
-                            distance = POSITIVE_INFINITY,
-                            nearbyDevicesViewModel = nearbyDevicesViewModel,
-                            userName = nearbyDevicesViewModel.userName.value,
-                            time = LocalDateTime.now()
-                        )
                     }
                 }
             }else{
@@ -197,7 +194,6 @@ fun SenderMessageBox(
                         IconButton(onClick = {
                             messageTextToSend = messageText
                             if (messageTextToSend.isNotBlank()) {
-                                messagesViewModel.setOnlineStatus(flag = false)
                                 messagesViewModel.setSendFlag(flag = true)
                                 messagingFlag = true
                                 messageText = ""

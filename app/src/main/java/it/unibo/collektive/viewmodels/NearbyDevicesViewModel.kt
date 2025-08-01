@@ -28,7 +28,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     private val _userName = MutableStateFlow("User")
     private val _online = MutableStateFlow(true)
 
-    private val IP_HOST = "192.168.1.6"
+    private val IP_HOST = "192.168.1.3"
 
     /**
      * The connection state.

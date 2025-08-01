@@ -18,10 +18,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.uuid.Uuid
@@ -42,7 +38,7 @@ import kotlin.time.Duration.Companion.seconds
  * @param dispatcher Coroutine dispatcher to perform asynchronous tasks (default: Dispatchers.IO)
  */
 class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
-    private val IP_HOST = "192.168.1.6"
+    private val IP_HOST = "192.168.1.3"
 
     // Flow holding the current data pair of (device ID, message triple)
     private val _dataFlow = MutableStateFlow<Pair<Uuid?, Triple<Float, String, String>?>>(null to null)
@@ -70,6 +66,12 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
 
     // Message to send
     private val _messageToSend = MutableStateFlow("")
+
+    // Spreading time for message
+    private val _spreadingTime = MutableStateFlow(0)
+
+    // Distance to send message
+    private val _distance = MutableStateFlow(POSITIVE_INFINITY)
 
     private val _position = MutableStateFlow<Location?>(null)
     private val _coordinates = MutableStateFlow<Point3D?>(null)
@@ -137,9 +139,11 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             )
         }.filterNot { msg ->
             tmp.any { existing ->
-                existing.sender == msg.sender &&
+                (
+                    existing.sender == msg.sender &&
                     existing.receiver == msg.receiver &&
                     existing.text == msg.text
+                ) || msg.text.isEmpty()
             }
         }
         this._messages.value = tmp
@@ -214,6 +218,24 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     }
 
     /**
+     * Sets the duration for which the message spreading (sending) process should run.
+     *
+     * @param spreadingTime The spreading time in seconds.
+     */
+    fun setSpreadingTime(spreadingTime: Int) {
+        _spreadingTime.value = spreadingTime
+    }
+
+    /**
+     * Sets the maximum distance range for message propagation.
+     *
+     * @param distance The distance value in meters (or the unit used).
+     */
+    fun setDistance(distance: Float) {
+        _distance.value = distance
+    }
+
+    /**
      * Updates the current geographic location of the device.
      *
      * This function sets the internal state variable [_position] to the specified [location],
@@ -258,34 +280,32 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     }
 
     /**
-     * Starts a coroutine that continuously listens for receive messages
-     * and processes incoming message broadcasts in the network.
+     * Starts a single-phase message propagation program (either sending or listening),
+     * and displays messages **only after** the propagation has ended.
      *
-     * This function combines message broadcasting and listening. If the current device
-     * is marked as a sender (`_messaging.value == true`), it spreads its own message via
-     * a gradient-based mechanism. At the same time, it listens for messages from other
-     * nearby devices using the Collektive framework.
+     * This is a simplified version of the chat execution, where the same `spreadAndListen`
+     * program handles both sending and listening behavior, depending on the `_sendFlag.value`.
+     * The cycle is executed once per second, and messages are displayed only after
+     * the propagation has completed (i.e., at the end of each cycle).
      *
-     * During each cycle:
-     * - It computes and updates the gradient-based broadcast program.
-     * - It updates the list of known senders using message propagation (`listenOtherSources`).
-     * - It updates the list of all nearby devices and their message intentions.
-     * - It saves any new messages received from nearby nodes into `_received`.
-     * - If new messages are received, they are added to the main message list.
+     * Unlike the more advanced version of `listenAndSend` (which runs sending and listening
+     * concurrently in two coroutines and allows real-time message updates during propagation),
+     * this version is useful for basic setups or when messages should appear **after**
+     * the entire spreading phase is complete.
      *
-     * @param distance The maximum communication distance for message propagation.
-     * @param nearbyDevicesViewModel ViewModel containing device ID and user identity.
-     * @param userName The user name of the local device, used for display and attribution.
-     * @param time The timestamp associated with the start of the current message session.
+     * @param distance The distance range for propagation
+     * @param nearbyDevicesViewModel Reference to the NearbyDevicesViewModel for device ID and position
+     * @param userName The username of the current user
+     * @param time The LocalDateTime timestamp used for recording message receipt time
      */
-    fun listen(
+    /*fun listenAndSend(
         distance: Float,
         nearbyDevicesViewModel: NearbyDevicesViewModel,
         userName: String,
         time: LocalDateTime
     ) {
         viewModelScope.launch(Dispatchers.Default) {
-            val program = spreadAndListen(
+            _program = spreadAndListen(
                 isSender = _sendFlag.value,
                 deviceId = nearbyDevicesViewModel.deviceId,
                 userName = userName,
@@ -299,75 +319,118 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                     delay(1.seconds)
                 }
             }.onEach {
-                _senders.value.clear()
-                _devices.value.clear()
-                _received.value.clear()
-                val newResult = program.cycle()
+                clear()
+                val newResult = _program!!.cycle()
                 _dataFlow.value = newResult
-                if(newResult.second.first != POSITIVE_INFINITY) {
-                    val allSender = listenOtherSources(nearbyDevicesViewModel.deviceId, newResult).cycle()
-                    _senders.value.putAll(allSender.map { it.value.first to it.value.second })
-                }
-                _devices.value.putAll(getListOfDevices(nearbyDevicesViewModel).cycle())
-                _received.value.putAll(
-                    saveNewMessages(
-                        nearbyDevicesViewModel = nearbyDevicesViewModel,
-                        position = _coordinates.value!!,
-                        time = time,
-                        userName = nearbyDevicesViewModel.userName.value,
-                        devices = _devices.value,
-                        senders = _senders.value
-                    ).cycle()
-                )
-                if(_received.value.isNotEmpty()) {
-                    addNewMessagesToList(_received.value.toMap())
-                }
+                workflow(newResult, nearbyDevicesViewModel, time)
             }.flowOn(Dispatchers.Default).launchIn(this)
+        }
+    }*/
+
+    /**
+     * Starts two concurrent programs for message propagation: one for listening and one for sending.
+     *
+     * - The **listener program** runs continuously, listening for incoming messages using
+     *   `spreadAndListen` with `isSender = false`. Received messages are processed and stored.
+     * - The **sender program** is activated when `_sendFlag.value` is true, using `spreadAndListen`
+     *   with `isSender = true`. It sends the current message repeatedly for `_spreadingTime.value` cycles.
+     *
+     * Both programs run concurrently and are scoped within the ViewModel.
+     *
+     * @param nearbyDevicesViewModel Reference to the NearbyDevicesViewModel for device ID and position
+     * @param userName The username of the current user
+     * @param time The LocalDateTime timestamp used for recording message receipt time
+     */
+    fun listenAndSend(
+        nearbyDevicesViewModel: NearbyDevicesViewModel,
+        userName: String,
+        time: LocalDateTime
+    ) {
+        viewModelScope.launch(Dispatchers.Default) {
+            launch {
+                val listenerProgram = spreadAndListen(
+                    isSender = false,
+                    deviceId = nearbyDevicesViewModel.deviceId,
+                    userName = userName,
+                    distance = POSITIVE_INFINITY,
+                    position = _coordinates.value!!,
+                    message = ""
+                )
+                while (_online.value) {
+                    clear()
+                    val result = listenerProgram.cycle()
+                    _dataFlow.value = result
+                    workflow(result, nearbyDevicesViewModel, time)
+                    delay(1.seconds)
+                }
+            }
+            launch {
+                while (_online.value) {
+                    if (_sendFlag.value && _distance.value.isFinite() && _spreadingTime.value > 0) {
+                        val senderProgram = spreadAndListen(
+                            isSender = true,
+                            deviceId = nearbyDevicesViewModel.deviceId,
+                            userName = userName,
+                            distance = _distance.value,
+                            position = _coordinates.value!!,
+                            message = _messageToSend.value
+                        )
+                        repeat(_spreadingTime.value) {
+                            clear()
+                            val result = senderProgram.cycle()
+                            _dataFlow.value = result
+                            delay(1.seconds)
+                        }
+                    }else{
+                        delay(0.5.seconds)
+                    }
+                }
+            }
         }
     }
 
     /**
-     * Starts sending a message and propagates it to nearby devices using a Collektive program.
+     * Processes the results of a propagation cycle by updating senders, devices, and received messages.
      *
-     * This function launches a coroutine that continuously runs a gradient-based
-     * propagation program, broadcasting the message from the local device to
-     * other devices within the specified distance.
+     * - If the received distance is finite, it listens for other message sources and updates the senders list.
+     * - Updates the list of nearby devices.
+     * - Saves new messages based on the current device, position, time, username, and known devices and senders.
+     * - If there are new received messages, they are added to the displayed message list.
      *
-     * @param distance The maximum distance (in meters) that the message should propagate.
-     * @param nearbyDevicesViewModel The ViewModel containing context about the local device, including its unique ID.
-     * @param userName The name of the user sending the message.
-     *
-     * The function creates a Collektive program which spreads the message from the sender
-     * and repeatedly executes a cycle to propagate and update message state while the
-     * messaging flag (_messaging.value) remains true.
-     *
-     * During each cycle, the new propagated data is saved into the `_dataFlow` state,
-     * and the coroutine delays for 1 second before continuing.
+     * @param newResult The result from the propagation cycle, containing the message UUID and a Triple with
+     *                  distance, sender ID, and message content.
+     * @param nearbyDevicesViewModel Reference to the NearbyDevicesViewModel for device information.
+     * @param time The LocalDateTime timestamp representing the current processing time.
      */
-    fun send(
-        distance: Float,
+    private suspend fun workflow(
+        newResult: Pair<Uuid, Triple<Float, String, String>>,
         nearbyDevicesViewModel: NearbyDevicesViewModel,
-        userName: String
-    ) {
-        viewModelScope.launch(Dispatchers.Default) {
-            val program = spreadAndListen(
-                isSender = _sendFlag.value,
-                deviceId = nearbyDevicesViewModel.deviceId,
-                userName = userName,
-                distance = distance,
-                position = _coordinates.value!!,
-                message = _messageToSend.value
-            )
-            flow {
-                while (_sendFlag.value) {
-                    emit(Unit)
-                    delay(1.seconds)
-                }
-            }.onEach {
-                val newResult = program.cycle()
-                _dataFlow.value = newResult
-            }.flowOn(Dispatchers.Default).launchIn(this)
+        time: LocalDateTime
+    ){
+        if(newResult.second.first != POSITIVE_INFINITY) {
+            val allSender = listenOtherSources(nearbyDevicesViewModel.deviceId, newResult).cycle()
+            _senders.value.putAll(allSender.map { it.value.first to it.value.second })
         }
+        _devices.value.putAll(getListOfDevices(nearbyDevicesViewModel).cycle())
+        _received.value.putAll(
+            saveNewMessages(
+                nearbyDevicesViewModel = nearbyDevicesViewModel,
+                position = _coordinates.value!!,
+                time = time,
+                userName = nearbyDevicesViewModel.userName.value,
+                devices = _devices.value,
+                senders = _senders.value
+            ).cycle()
+        )
+        if(_received.value.isNotEmpty()) {
+            addNewMessagesToList(_received.value.toMap())
+        }
+    }
+
+    private fun clear(){
+        _senders.value.clear()
+        _devices.value.clear()
+        _received.value.clear()
     }
 
     /**
