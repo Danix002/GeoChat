@@ -24,6 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import it.unibo.collektive.ui.theme.Purple80
@@ -46,11 +50,13 @@ fun UserNameEditPopUp(onDismissClick: () -> Unit, currentUserName: String, nearb
         ) {
             Text(
                 text = "Modify your name",
-                fontSize = 24.sp,
+                fontSize = 20.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
-                color = Color.Black
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
             Box(
                 modifier = Modifier
@@ -61,9 +67,9 @@ fun UserNameEditPopUp(onDismissClick: () -> Unit, currentUserName: String, nearb
                     modifier = Modifier
                         .fillMaxWidth(),
                     singleLine = true,
+                    textStyle = TextStyle(fontStyle = FontStyle.Italic, color = Color.Gray),
                     value = userNameText,
                     onValueChange = { userNameText = it },
-                    placeholder = { Text(text = "Modify your name...", color = Color.Black) },
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Purple40,
                         unfocusedBorderColor = Purple40,
