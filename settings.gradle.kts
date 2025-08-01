@@ -19,6 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CollektiveExampleAndroid"
+rootProject.name = "GeoChat"
 include(":app")
- 
