@@ -40,6 +40,7 @@ import it.unibo.collektive.ui.components.SenderMessageBox
 import it.unibo.collektive.ui.theme.Purple40
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
+import java.time.LocalDateTime
 
 @androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
@@ -54,7 +55,12 @@ fun ChatPage(
     val devicesInChat by messagesViewModel.devicesInChat.collectAsState()
     var isLoading by remember { mutableStateOf(false) }
     var isReadyToShowChat by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
+        messagesViewModel.listenAndSend(
+            nearbyDevicesViewModel = nearbyDevicesViewModel,
+            userName = nearbyDevicesViewModel.userName.value
+        )
         delay(1.seconds)
         isReadyToShowChat = true
     }
@@ -64,6 +70,7 @@ fun ChatPage(
             isLoading = false
         }
     }
+
     Box(modifier = modifier.then(Modifier.padding(20.dp))) {
         Column(
             modifier = Modifier.fillMaxSize(),

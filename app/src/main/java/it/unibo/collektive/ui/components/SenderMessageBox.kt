@@ -98,24 +98,24 @@ fun SenderMessageBox(
     var isWaitingForLocation by remember { mutableStateOf(false) }
     var flagTimeout by remember { mutableStateOf(false) }
     var remainingTime by remember { mutableStateOf(0.seconds) }
+
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location : Location? ->
             if(location != null) {
                 CoroutineScope(Dispatchers.Main).launch {
                     messagesViewModel.setLocation(location)
                     if (messagesViewModel.sendFlag.value) {
+                        val time = LocalDateTime.now()
                         messagesViewModel.addSentMessageToList(
                             nearbyDevicesViewModel = nearbyDevicesViewModel,
                             userName = nearbyDevicesViewModel.userName.value,
                             message = messageTextToSend,
-                            time = LocalDateTime.now()
+                            time = time
                         )
+                        messagesViewModel.setTime(time)
                         messagesViewModel.setMessageToSend(messageTextToSend)
-                        messagesViewModel.send(
-                            distance = communicationSettingViewModel.getDistance(),
-                            nearbyDevicesViewModel = nearbyDevicesViewModel,
-                            userName = nearbyDevicesViewModel.userName.value
-                        )
+                        messagesViewModel.setDistance(communicationSettingViewModel.getDistance())
+                        messagesViewModel.setSpreadingTime(communicationSettingViewModel.getTime().toInt())
                         val validationTime = communicationSettingViewModel.getTime().toInt().seconds
                         if (validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND) {
                             throw IllegalStateException("The time to send the message is too short")
@@ -125,18 +125,12 @@ fun SenderMessageBox(
                             delay(1.seconds)
                             remainingTime = remainingTime.minus(1.seconds)
                         }
-                        messagesViewModel.setSendFlag(flag = false)
-                        messagesViewModel.setOnlineStatus(flag = true)
                         messagingFlag = false
                         messageTextToSend = ""
                         messagesViewModel.setMessageToSend(messageTextToSend)
-                    }else{
-                        messagesViewModel.listen(
-                            distance = POSITIVE_INFINITY,
-                            nearbyDevicesViewModel = nearbyDevicesViewModel,
-                            userName = nearbyDevicesViewModel.userName.value,
-                            time = LocalDateTime.now()
-                        )
+                        messagesViewModel.setDistance(POSITIVE_INFINITY)
+                        messagesViewModel.setSpreadingTime(0)
+                        messagesViewModel.setSendFlag(flag = messagingFlag)
                     }
                 }
             }else{
@@ -162,6 +156,7 @@ fun SenderMessageBox(
             flagTimeout = true
         }
     }
+
     if (isWaitingForLocation && !flagTimeout) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = Purple40)
@@ -197,7 +192,6 @@ fun SenderMessageBox(
                         IconButton(onClick = {
                             messageTextToSend = messageText
                             if (messageTextToSend.isNotBlank()) {
-                                messagesViewModel.setOnlineStatus(flag = false)
                                 messagesViewModel.setSendFlag(flag = true)
                                 messagingFlag = true
                                 messageText = ""

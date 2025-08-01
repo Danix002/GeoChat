@@ -54,7 +54,7 @@ class MqttMailbox(
     private suspend fun sendHeartbeatPulse() = coroutineScope {
         while (isActive) {
             mqttClient.publish(heartbeatTopic(deviceId), emptyPayload)
-            delay(60.seconds)
+            delay(1.seconds)
         }
     }
 
@@ -122,7 +122,7 @@ class MqttMailbox(
             host: String,
             port: Int = 1883,
             serializer: SerialFormat = Json,
-            retentionTime: Duration = 90.seconds,
+            retentionTime: Duration = 5.seconds,
             dispatcher: CoroutineDispatcher,
         ): MqttMailbox = coroutineScope {
             MqttMailbox(deviceId, host, port, serializer, retentionTime, dispatcher).apply {

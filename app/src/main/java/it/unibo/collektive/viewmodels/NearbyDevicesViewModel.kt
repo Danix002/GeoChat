@@ -28,7 +28,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
     private val _userName = MutableStateFlow("User")
     private val _online = MutableStateFlow(true)
 
-    private val IP_HOST = "192.168.1.6"
+    private val IP_HOST = "192.168.1.3"
 
     /**
      * The connection state.
@@ -103,13 +103,13 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * Start the Collektive program.
      */
     fun startCollektiveProgram() {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
             flow {
                 while (_online.value) {
                     emit(Unit)
-                    delay(1.seconds)
+                    delay(2.seconds)
                 }
             }.onEach {
                 val newResult = program.cycle()
