@@ -19,8 +19,4 @@ class ExampleInstrumentedTest {
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
         assertEquals("it.unibo.collektive", appContext.packageName)
     }
-
-    // TODO: simulate sending the message and verify in the MQTT broker that the message
-    //       is received by setting a certain timeout; simulate a chat using mocks.
-
 }
