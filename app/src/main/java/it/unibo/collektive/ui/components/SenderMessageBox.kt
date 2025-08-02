@@ -1,7 +1,6 @@
 package it.unibo.collektive.ui.components
 
 import android.location.Location
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.OutlinedTextField
@@ -22,27 +21,41 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.location.FusedLocationProviderClient
-import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.ui.theme.Purple40
 import it.unibo.collektive.viewmodels.CommunicationSettingViewModel
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * A composable UI component that provides a message input field and handles
+ * sending messages based on user input and location availability.
+ *
+ * This function interacts with the [MessagesViewModel] to enqueue messages
+ * and with the [FusedLocationProviderClient] to ensure the user has a valid
+ * GPS position before sending.
+ *
+ * The UI includes:
+ * - A text field to type the message.
+ * - A send button that triggers message enqueuing and sending logic.
+ * - Visual feedback (progress indicator, warning popup) in case of missing location.
+ *
+ * Permission Requirement:
+ * Requires either ACCESS_FINE_LOCATION or ACCESS_COARSE_LOCATION to access location.
+ *
+ * @param messagesViewModel The ViewModel managing the list of messages.
+ * @param communicationSettingViewModel The ViewModel providing message distance and duration.
+ * @param nearbyDevicesViewModel The ViewModel tracking the nearby devices and user name.
+ * @param fusedLocationProviderClient Location provider for obtaining the user's last known location.
+ */
 @androidx.annotation.RequiresPermission(anyOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION])
 @Composable
 fun SenderMessageBox(
@@ -56,31 +69,19 @@ fun SenderMessageBox(
     var errorPositionPopup by remember { mutableStateOf(false) }
     var isWaitingForLocation by remember { mutableStateOf(false) }
     var flagTimeout by remember { mutableStateOf(false) }
-    val pendingMessages by remember { derivedStateOf { messagesViewModel.pendingMessages } }
 
-    LaunchedEffect(pendingMessages.size) {
+    LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
             if (location != null) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    messagesViewModel.setLocation(location)
-                    coroutineScope {
-                        messagesViewModel.pendingMessages.forEach { message ->
-                            launch {
-                                messagesViewModel.listenAndSend(
-                                    nearbyDevicesViewModel,
-                                    nearbyDevicesViewModel.userName.value,
-                                    message
-                                )
-                                val validationTime = message.spreadingTime.seconds
-                                if (validationTime < messagesViewModel.MINIMUM_TIME_TO_SEND) {
-                                    throw IllegalStateException("The time to send the message is too short")
-                                }
-                                delay(validationTime)
-                            }
-                            messagesViewModel.dequeueMessage()
-                        }
-                    }
-                    messagingFlag = false
+                messagesViewModel.addSentMessageToList(
+                    nearbyDevicesViewModel = nearbyDevicesViewModel,
+                    userName = nearbyDevicesViewModel.userName.value,
+                    message = messageText,
+                    time = LocalDateTime.now()
+                )
+                messageText = ""
+                messagingFlag = false
+                if(messagesViewModel.pendingMessages.isEmpty()) {
                     messagesViewModel.setSendFlag(flag = false)
                 }
             } else {
@@ -148,13 +149,6 @@ fun SenderMessageBox(
                                 messagesViewModel.setSendFlag(flag = true)
                                 messagingFlag = true
                             }
-                            messagesViewModel.addSentMessageToList(
-                                nearbyDevicesViewModel = nearbyDevicesViewModel,
-                                userName = nearbyDevicesViewModel.userName.value,
-                                message = messageText,
-                                time = time
-                            )
-                            messageText = ""
                         }
                     }) {
                         Icon(

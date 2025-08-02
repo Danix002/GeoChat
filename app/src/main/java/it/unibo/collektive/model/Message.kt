@@ -43,7 +43,11 @@ data class Message(
             time: String,
             timestamp: LocalDateTime
         ): Int {
-            return "$text|$userName|$sender|$receiver|$time|$timestamp".hashCode()
+            return if(sender == receiver) {
+                "$text|$userName|$sender|$receiver|$time|$timestamp".hashCode()
+            }else{
+                "$text|$userName|$sender|$receiver".hashCode()
+            }
         }
     }
 }

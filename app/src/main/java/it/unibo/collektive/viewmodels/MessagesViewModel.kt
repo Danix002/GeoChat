@@ -26,10 +26,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.uuid.Uuid
 import java.time.LocalDateTime
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.Float.Companion.MAX_VALUE
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -50,14 +51,10 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     private val IP_HOST = "192.168.1.3"
 
     // Map of senders currently detected (deviceId -> (distance, username, message))
-    private val _senders = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(
-        ConcurrentHashMap()
-    )
+    private val _senders = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
 
     // Map of devices discovered nearby (deviceId -> (distance, username, message))
-    private val _devices = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(
-        ConcurrentHashMap()
-    )
+    private val _devices = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
 
     // Flow indicating if the device is online in the chat network
     private val _online = MutableStateFlow(false)
@@ -69,15 +66,39 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     private val _messages = MutableStateFlow<MutableList<Message>>(mutableListOf())
 
     // Map holding messages received from each sender
-    private val _received = MutableStateFlow<MutableMap<Uuid, List<Params>>>(
-        ConcurrentHashMap()
-    )
+    private val _received = MutableStateFlow<MutableMap<Uuid, List<Params>>>(mutableMapOf())
 
     // Number of devices in chat
     private val _counterDevices = MutableStateFlow(0)
 
+    /**
+     * Internal list of messages that are pending for transmission.
+     * These messages will be processed and sent out according to their
+     * specified spreading time.
+     */
     private val _pendingMessages = mutableStateListOf<EnqueueMessage>()
     val pendingMessages: List<EnqueueMessage> get() = _pendingMessages
+
+    /**
+     * A state flow holding the list of currently active Collektive programs,
+     * each paired with its expiration timestamp in milliseconds.
+     *
+     * Each element of the list is a pair:
+     * - The first component is a `Collektive<Uuid, Unit>` instance representing
+     *   an aggregate program (e.g., for message propagation).
+     * - The second component is a `Long` value representing the expiration time
+     *   (in epoch milliseconds). Once the current system time exceeds this value,
+     *   the program is considered expired and is removed from the list.
+     *
+     * This structure allows concurrent execution of multiple aggregate programs,
+     * including message broadcasts, for a limited time window.
+     *
+     * It is updated by `sendHeartbeatPulse()` and consumed by `listenAndSend()`,
+     * which periodically filters out expired programs and cycles the active ones.
+     *
+     * Related: `sendHeartbeatPulse()`, `listenAndSend()`, `Collektive`
+     */
+    private val _programs = MutableStateFlow<List<Pair<Collektive<Uuid, Unit>, Long>>>(emptyList())
 
     // Current position of the device
     private val _position = MutableStateFlow<Location?>(null)
@@ -289,7 +310,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * This function follows a FIFO (First-In-First-Out) policy, returning the oldest message
      * waiting to be sent. Once dequeued, the message is removed from the pending list.
      */
-    fun dequeueMessage(): EnqueueMessage? {
+    private fun dequeueMessage(): EnqueueMessage? {
         return if (_pendingMessages.isNotEmpty()) {
             _pendingMessages.removeAt(0)
         } else {
@@ -298,42 +319,98 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     }
 
     /**
-     * Starts a background coroutine that continuously executes a communication program for the given message.
+     * Starts listening and sending messages using the Collektive framework.
      *
-     * This function launches a coroutine in the [viewModelScope] on the [Dispatchers.Default] context.
-     * It creates a communication program (typically a Collektive aggregate program) using the provided
-     * [nearbyDevicesViewModel], [userName], and [message], and executes its cycle on every heartbeat.
+     * This function manages:
+     * 1. A main "listener" program that continuously runs and listens for incoming messages.
+     * 2. A dynamic list of additional "sender" programs, each responsible for broadcasting
+     *    a specific message for a limited amount of time.
      *
-     * The heartbeat flow is collected in the scope of the ViewModel and runs until it is canceled or the
-     * ViewModel is cleared.
+     * Each program is an instance of an aggregate program created via `createProgram`.
+     * On every heartbeat tick, all currently active programs are executed via `cycle()`.
+     * Expired sender programs (based on their `spreadingTime`) are automatically removed
+     * from the list of active programs.
      *
-     * @param nearbyDevicesViewModel The ViewModel containing information about nearby devices.
-     * @param userName The name of the current user, used for tagging the message origin.
-     * @param message The message to be sent. Defaults to an empty message with invalid parameters if not provided.
+     * @param nearbyDevicesViewModel The ViewModel that holds the current user’s name and
+     *        information about nearby devices.
      *
-     * Example usage:
-     * ```
-     * messagesViewModel.listenAndSend(
-     *     nearbyDevicesViewModel,
-     *     userName = "Alice",
-     *     message = EnqueueMessage("Hello", LocalDateTime.now(), 10f, 5)
-     * )
-     * ```
+     * Function behavior:
+     * - Initializes a default listener-only program (without a message to send) and stores
+     *   it with a very long duration (`Long.MAX_VALUE`) to keep it always active.
+     * - On each heartbeat emission, the function:
+     *   - Clears any temporary state,
+     *   - Removes expired sender programs,
+     *   - Executes the `cycle()` of all active programs (both listener and senders).
+     * - Additional sender programs are created separately by `sendHeartbeatPulse()` and
+     *   added dynamically to the `_programs` list with their respective expiration times.
+     *
+     * Related: `sendHeartbeatPulse()`, `createProgram()`, `_programs`
      */
-    fun listenAndSend(
-        nearbyDevicesViewModel: NearbyDevicesViewModel,
-        userName: String,
-        message: EnqueueMessage = EnqueueMessage("", LocalDateTime.now(), MAX_VALUE, 0)
-    ) {
+    fun listenAndSend(nearbyDevicesViewModel: NearbyDevicesViewModel) {
         viewModelScope.launch(Dispatchers.Default) {
-            val program = createProgram(nearbyDevicesViewModel, userName, message)
+            val listenProgram = createProgram(
+                nearbyDevicesViewModel,
+                nearbyDevicesViewModel.userName.value,
+                EnqueueMessage("", LocalDateTime.now(), MAX_VALUE, 0)
+            )
+            _programs.value = listOf(listenProgram to Long.MAX_VALUE)
             generateHeartbeatFlow()
                 .onEach {
                     clear()
-                    program.cycle()
+                    val now = System.currentTimeMillis()
+                    _programs.value = _programs.value.filter { (_, endTime) -> now < endTime }
+                    _programs.value.forEach { (program, _) -> program.cycle() }
                 }
                 .flowOn(Dispatchers.Default)
-                .launchIn(viewModelScope)
+                .launchIn(this)
+        }
+        sendHeartbeatPulse(nearbyDevicesViewModel)
+    }
+
+    /**
+     * Continuously listens for new messages to send and adds corresponding
+     * aggregate programs to the active program list (`_programs`).
+     *
+     * This function runs in a background coroutine and checks for messages
+     * queued via `dequeueMessage()`. For each message:
+     * - A new aggregate program is created via `createProgram()`.
+     * - The program is added to the `_programs` list along with its expiration timestamp,
+     *   computed based on the `spreadingTime` field of the message.
+     *
+     * These additional programs will then be executed on each heartbeat tick
+     * by the main `listenAndSend()` loop, until their time expires.
+     *
+     * If no message is available, the function waits 1 second before retrying.
+     *
+     * @param nearbyDevicesViewModel The ViewModel containing the user name and
+     *        the local device context for program creation.
+     *
+     * @throws IllegalStateException if the message spreading time is too short
+     *         (i.e., less than `MINIMUM_TIME_TO_SEND` seconds).
+     *
+     * Related: `listenAndSend()`, `_programs`, `createProgram()`
+     */
+    private fun sendHeartbeatPulse(
+        nearbyDevicesViewModel: NearbyDevicesViewModel
+    ){
+        viewModelScope.launch(Dispatchers.Default) {
+            while (isActive) {
+                val enqueueMessage = dequeueMessage()
+                if (enqueueMessage != null) {
+                    if (enqueueMessage.spreadingTime.seconds < MINIMUM_TIME_TO_SEND) {
+                        throw IllegalStateException("The time to send the message is too short")
+                    }
+                    val newProgram = createProgram(
+                        nearbyDevicesViewModel,
+                        nearbyDevicesViewModel.userName.value,
+                        enqueueMessage
+                    )
+                    val endTime = System.currentTimeMillis() + (enqueueMessage.spreadingTime * 1000L)
+                    _programs.update { it + (newProgram to endTime) }
+                } else {
+                    delay(1.seconds)
+                }
+            }
         }
     }
 

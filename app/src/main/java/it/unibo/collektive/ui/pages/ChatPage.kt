@@ -58,8 +58,7 @@ fun ChatPage(
 
     LaunchedEffect(Unit) {
         messagesViewModel.listenAndSend(
-            nearbyDevicesViewModel = nearbyDevicesViewModel,
-            userName = nearbyDevicesViewModel.userName.value
+            nearbyDevicesViewModel = nearbyDevicesViewModel
         )
         delay(1.seconds)
         isReadyToShowChat = true
