@@ -1,13 +1,14 @@
 package it.unibo.collektive.viewmodels
 
 import android.location.Location
-import android.util.Log
+import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.api.Aggregate
 import it.unibo.collektive.aggregate.api.mapNeighborhood
 import it.unibo.collektive.aggregate.api.neighboring
+import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
@@ -25,10 +26,12 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.Float.Companion.POSITIVE_INFINITY
 import kotlin.uuid.Uuid
 import java.time.LocalDateTime
+import kotlin.Float.Companion.MAX_VALUE
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -68,16 +71,34 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     // Number of devices in chat
     private val _counterDevices = MutableStateFlow(0)
 
-    // Message to send
-    private val _messageToSend = MutableStateFlow("")
+    /**
+     * Internal list of messages that are pending for transmission.
+     * These messages will be processed and sent out according to their
+     * specified spreading time.
+     */
+    private val _pendingMessages = mutableStateListOf<EnqueueMessage>()
+    val pendingMessages: List<EnqueueMessage> get() = _pendingMessages
 
-    // Spreading time for message
-    private val _spreadingTime = MutableStateFlow(0)
-
-    private val _time = MutableStateFlow(LocalDateTime.now())
-
-    // Distance to send message
-    private val _distance = MutableStateFlow(POSITIVE_INFINITY)
+    /**
+     * A state flow holding the list of currently active Collektive programs,
+     * each paired with its expiration timestamp in milliseconds.
+     *
+     * Each element of the list is a pair:
+     * - The first component is a `Collektive<Uuid, Unit>` instance representing
+     *   an aggregate program (e.g., for message propagation).
+     * - The second component is a `Long` value representing the expiration time
+     *   (in epoch milliseconds). Once the current system time exceeds this value,
+     *   the program is considered expired and is removed from the list.
+     *
+     * This structure allows concurrent execution of multiple aggregate programs,
+     * including message broadcasts, for a limited time window.
+     *
+     * It is updated by `sendHeartbeatPulse()` and consumed by `listenAndSend()`,
+     * which periodically filters out expired programs and cycles the active ones.
+     *
+     * Related: `sendHeartbeatPulse()`, `listenAndSend()`, `Collektive`
+     */
+    private val _programs = MutableStateFlow<List<Pair<Collektive<Uuid, Unit>, Long>>>(emptyList())
 
     // Current position of the device
     private val _position = MutableStateFlow<Location?>(null)
@@ -102,7 +123,6 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * Public immutable flows exposed to UI.
      */
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
-    val sendFlag: StateFlow<Boolean> get() = _sendFlag
 
     /**
      * Integrates newly received messages into the current local message list,
@@ -212,42 +232,6 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     }
 
     /**
-     * Updates the message text that is intended to be sent.
-     *
-     * @param text The new message content to set for sending.
-     */
-    fun setMessageToSend(text: String) {
-        _messageToSend.value = text
-    }
-
-    /**
-     * Sets the duration for which the message spreading (sending) process should run.
-     *
-     * @param spreadingTime The spreading time in seconds.
-     */
-    fun setSpreadingTime(spreadingTime: Int) {
-        _spreadingTime.value = spreadingTime
-    }
-
-    /**
-     * Updates the current time value stored in the [_time] state.
-     *
-     * @param time The [LocalDateTime] to set as the new value.
-     */
-    fun setTime(time: LocalDateTime) {
-        _time.value = time
-    }
-
-    /**
-     * Sets the maximum distance range for message propagation.
-     *
-     * @param distance The distance value in meters (or the unit used).
-     */
-    fun setDistance(distance: Float) {
-        _distance.value = distance
-    }
-
-    /**
      * Updates the current geographic location of the device.
      *
      * This function sets the internal state variable [_position] to the specified [location],
@@ -292,42 +276,141 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     }
 
     /**
-     * Starts a background coroutine that repeatedly executes a message propagation and listening program.
+     * Adds a message to the pending messages queue to be sent after the current propagation completes.
      *
-     * This function launches a coroutine in [Dispatchers.Default] that:
-     * - Initializes a propagation program via [spreadAndListen]
-     * - Periodically executes a `cycle()` on the program every second, while `_online` is `true`
-     * - Calls [clear] before each cycle
-     * - If `_sendFlag` is `true`, reinitializes the program by calling [spreadAndListen] again
+     * If a message is already being propagated (i.e., another message is currently in progress),
+     * the enqueued message will wait in the queue until the previous message finishes.
      *
-     * The logic runs as long as `_online` is `true`, emitting signals every second.
-     *
-     * @param nearbyDevicesViewModel The ViewModel managing nearby device discovery and local device ID.
-     * @param userName The name of the user participating in the chat or propagation process.
+     * @param message The text content of the message to enqueue.
+     * @param time The timestamp representing when the message was created or requested for sending.
+     * @param distance The maximum distance (in meters) within which the message should be propagated.
+     * @param spreadingTime The duration (in seconds) for which the message should be propagated.
      */
-    fun listenAndSend(
-        nearbyDevicesViewModel: NearbyDevicesViewModel,
-        userName: String,
+    fun enqueueMessage(
+        message: String,
+        time: LocalDateTime,
+        distance: Float,
+        spreadingTime: Int
     ) {
+        _pendingMessages.add(
+            EnqueueMessage(
+                text = message,
+                time = time,
+                distance = distance,
+                spreadingTime = spreadingTime
+            )
+        )
+    }
+
+    /**
+     * Dequeues and removes the first message from the list of pending messages.
+     *
+     * @return The first [EnqueueMessage] in the queue, or `null` if the queue is empty.
+     *
+     * This function follows a FIFO (First-In-First-Out) policy, returning the oldest message
+     * waiting to be sent. Once dequeued, the message is removed from the pending list.
+     */
+    private fun dequeueMessage(): EnqueueMessage? {
+        return if (_pendingMessages.isNotEmpty()) {
+            _pendingMessages.removeAt(0)
+        } else {
+            null
+        }
+    }
+
+    /**
+     * Starts listening and sending messages using the Collektive framework.
+     *
+     * This function manages:
+     * 1. A main "listener" program that continuously runs and listens for incoming messages.
+     * 2. A dynamic list of additional "sender" programs, each responsible for broadcasting
+     *    a specific message for a limited amount of time.
+     *
+     * Each program is an instance of an aggregate program created via `createProgram`.
+     * On every heartbeat tick, all currently active programs are executed via `cycle()`.
+     * Expired sender programs (based on their `spreadingTime`) are automatically removed
+     * from the list of active programs.
+     *
+     * @param nearbyDevicesViewModel The ViewModel that holds the current user’s name and
+     *        information about nearby devices.
+     *
+     * Function behavior:
+     * - Initializes a default listener-only program (without a message to send) and stores
+     *   it with a very long duration (`Long.MAX_VALUE`) to keep it always active.
+     * - On each heartbeat emission, the function:
+     *   - Clears any temporary state,
+     *   - Removes expired sender programs,
+     *   - Executes the `cycle()` of all active programs (both listener and senders).
+     * - Additional sender programs are created separately by `sendHeartbeatPulse()` and
+     *   added dynamically to the `_programs` list with their respective expiration times.
+     *
+     * Related: `sendHeartbeatPulse()`, `createProgram()`, `_programs`
+     */
+    fun listenAndSend(nearbyDevicesViewModel: NearbyDevicesViewModel) {
         viewModelScope.launch(Dispatchers.Default) {
-            var program = createProgram(nearbyDevicesViewModel, userName)
+            val listenProgram = createProgram(
+                nearbyDevicesViewModel,
+                nearbyDevicesViewModel.userName.value,
+                EnqueueMessage("", LocalDateTime.now(), MAX_VALUE, 0)
+            )
+            _programs.value = listOf(listenProgram to Long.MAX_VALUE)
             generateHeartbeatFlow()
                 .onEach {
                     clear()
-                    program.cycle()
-                    if (
-                        _sendFlag.value &&
-                        _distance.value.isFinite() &&
-                        _spreadingTime.value > 0 &&
-                        _messageToSend.value.isNotEmpty()
-                    ) {
-                        program = createProgram(nearbyDevicesViewModel, userName)
-                    }else{
-                        program = createProgram(nearbyDevicesViewModel, userName)
-                    }
+                    val now = System.currentTimeMillis()
+                    _programs.value = _programs.value.filter { (_, endTime) -> now < endTime }
+                    _programs.value.forEach { (program, _) -> program.cycle() }
                 }
                 .flowOn(Dispatchers.Default)
                 .launchIn(this)
+        }
+        sendHeartbeatPulse(nearbyDevicesViewModel)
+    }
+
+    /**
+     * Continuously listens for new messages to send and adds corresponding
+     * aggregate programs to the active program list (`_programs`).
+     *
+     * This function runs in a background coroutine and checks for messages
+     * queued via `dequeueMessage()`. For each message:
+     * - A new aggregate program is created via `createProgram()`.
+     * - The program is added to the `_programs` list along with its expiration timestamp,
+     *   computed based on the `spreadingTime` field of the message.
+     *
+     * These additional programs will then be executed on each heartbeat tick
+     * by the main `listenAndSend()` loop, until their time expires.
+     *
+     * If no message is available, the function waits 1 second before retrying.
+     *
+     * @param nearbyDevicesViewModel The ViewModel containing the user name and
+     *        the local device context for program creation.
+     *
+     * @throws IllegalStateException if the message spreading time is too short
+     *         (i.e., less than `MINIMUM_TIME_TO_SEND` seconds).
+     *
+     * Related: `listenAndSend()`, `_programs`, `createProgram()`
+     */
+    private fun sendHeartbeatPulse(
+        nearbyDevicesViewModel: NearbyDevicesViewModel
+    ){
+        viewModelScope.launch(Dispatchers.Default) {
+            while (isActive) {
+                val enqueueMessage = dequeueMessage()
+                if (enqueueMessage != null) {
+                    if (enqueueMessage.spreadingTime.seconds < MINIMUM_TIME_TO_SEND) {
+                        throw IllegalStateException("The time to send the message is too short")
+                    }
+                    val newProgram = createProgram(
+                        nearbyDevicesViewModel,
+                        nearbyDevicesViewModel.userName.value,
+                        enqueueMessage
+                    )
+                    val endTime = System.currentTimeMillis() + (enqueueMessage.spreadingTime * 1000L)
+                    _programs.update { it + (newProgram to endTime) }
+                } else {
+                    delay(1.seconds)
+                }
+            }
         }
     }
 
@@ -343,11 +426,15 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      */
     private suspend fun createProgram(
         nearbyDevicesViewModel: NearbyDevicesViewModel,
-        userName: String
+        userName: String,
+        message: EnqueueMessage
     ) = spreadAndListen(
         deviceId = nearbyDevicesViewModel.deviceId,
         userName = userName,
-        nearbyDevicesViewModel = nearbyDevicesViewModel
+        nearbyDevicesViewModel = nearbyDevicesViewModel,
+        distance = message.distance,
+        message = message.text,
+        time = message.time
     )
 
     /**
@@ -385,7 +472,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         time: LocalDateTime,
         position: Point3D
     ){
-        if(newResult.second.first != POSITIVE_INFINITY) {
+        if(newResult.second.first != MAX_VALUE) {
             val allSender = listenOtherSources(newResult)
             _senders.value.putAll(allSender.map { it.value.first to it.value.second })
         }
@@ -399,7 +486,6 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 senders = _senders.value
             )
         )
-        Log.i("MessagesViewModel", _received.value.toString())
         if(_received.value.isNotEmpty()) {
             addNewMessagesToList(_received.value.toMap())
         }
@@ -435,7 +521,6 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         sender:  Pair<Uuid, Triple<Float, String, String>>
     ): Map<Uuid, Pair<Uuid, Triple<Float, String, String>>> = neighboring(sender).toMap()
 
-
     /**
      * Starts a Collektive program that uses a gradient to propagate a message
      * (containing a distance, username, and message string) from a sender node to all nearby devices.
@@ -458,11 +543,11 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
         isSender: Boolean = _sendFlag.value,
         deviceId: Uuid,
         userName: String,
-        distance: Float = _distance.value,
+        distance: Float,
         position: Point3D = _coordinates.value!!,
-        message: String = _messageToSend.value,
+        message: String,
         nearbyDevicesViewModel: NearbyDevicesViewModel,
-        time: LocalDateTime = _time.value
+        time: LocalDateTime
     ): Collektive<Uuid, Unit> =
         Collektive(deviceId, MqttMailbox(deviceId, IP_HOST, dispatcher = dispatcher)) {
             val result = gradientCast(
@@ -473,7 +558,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                     if (fromSource + toNeighbor <= distance.toDouble()) {
                         dist
                     } else {
-                        deviceId to Triple(POSITIVE_INFINITY, userName, "")
+                        deviceId to Triple(MAX_VALUE, userName, "")
                     }
                 }
             )
