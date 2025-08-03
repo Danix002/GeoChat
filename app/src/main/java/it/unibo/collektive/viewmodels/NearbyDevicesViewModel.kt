@@ -103,7 +103,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * Start the Collektive program.
      */
     fun startCollektiveProgram() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(dispatcher) {
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
             flow {
@@ -114,7 +114,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
             }.onEach {
                 val newResult = program.cycle()
                 _dataFlow.value = newResult
-            }.flowOn(Dispatchers.Default).launchIn(this)
+            }.flowOn(dispatcher).launchIn(this)
         }
     }
 }

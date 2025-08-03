@@ -1,17 +1,15 @@
 package it.unibo.collektive
 
 import android.location.Location
+import android.util.Log
 import io.mockk.*
-import it.nicolasfarabegoli.mktt.MkttClient
-import it.nicolasfarabegoli.mktt.MqttMessage
-import it.nicolasfarabegoli.mktt.MqttQoS
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.*
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -22,70 +20,48 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 class SpreadingTimeTest {
-    private lateinit var mqttClientMock: MkttClient
-    private lateinit var messageFlow: MutableSharedFlow<MqttMessage>
     private lateinit var messagesViewModel: MessagesViewModel
     private lateinit var nearbyDevicesViewModel: NearbyDevicesViewModel
-    private val activeMessages = mutableMapOf<String, Long>()
+    private val messagesValue = mutableMapOf<Collektive<Uuid, Unit>, String>()
 
-    /**
-     * Prepares the test environment before each test case.
-     *
-     * This setup includes:
-     * - Creating a relaxed mock of the MQTT client to simulate network behavior.
-     * - Initializing a `MutableSharedFlow` to simulate incoming MQTT messages.
-     * - Mocking the `NearbyDevicesViewModel` with a fake device ID and username.
-     * - Spying on `MessagesViewModel` to allow interaction and inspection.
-     * - Defining the behavior of `publish()` to emit messages only if they have not expired,
-     *   simulating a message spreading duration in a network.
-     *
-     * This method is annotated with `@Before`, meaning it runs before each `@Test`.
-     */
     @Before
     fun setup() = runTest {
         val mockLocation = randomLocation()
-        mqttClientMock = mockk(relaxed = true)
+
         nearbyDevicesViewModel = mockk(relaxed = true)
         every { nearbyDevicesViewModel.deviceId } returns Uuid.random()
         every { nearbyDevicesViewModel.userName } returns MutableStateFlow("User")
-        messageFlow = MutableSharedFlow()
-        coEvery {
-            mqttClientMock.subscribe(any(), MqttQoS.AtMostOnce)
-        } returns messageFlow
-        coEvery {
-            mqttClientMock.publish(any(), any())
-        } coAnswers {
-            val topic = firstArg<String>()
-            val payload = secondArg<ByteArray>()
-            val messageId = String(payload)
-            val now = System.currentTimeMillis()
-            val spreadingTimeMillis = 5000.toLong()
-            activeMessages[messageId] = now + spreadingTimeMillis
-            launch {
-                delay(1.seconds)
-                val currentTime = System.currentTimeMillis()
-                if ((activeMessages[messageId] ?: 0) > currentTime) {
-                    messageFlow.emit(MqttMessage(topic, payload, MqttQoS.AtLeastOnce, false))
-                }
-            }
-        }
+
         messagesViewModel = spyk(MessagesViewModel(), recordPrivateCalls = true)
+        coEvery {
+            messagesViewModel.createProgram(any(), any(), any())
+        } answers {
+            val enqueueMessage = thirdArg<EnqueueMessage>()
+            val program = mockk<Collektive<Uuid, Unit>>(relaxed = true)
+            messagesValue[program] = enqueueMessage.text
+            program
+        }
         messagesViewModel.setLocation(mockLocation)
     }
 
     @Test
     fun `message expires after spreading time`() = runTest {
+        val emissions = mutableListOf<List<Pair<Collektive<Uuid, Unit>, Long>>>()
+        val job = launch {
+            messagesViewModel.programs
+                .collect { programs ->
+                    Log.i("Active program", "${programs.size}")
+                    emissions.add(programs)
+                }
+        }
+        messagesViewModel.setOnlineStatus(flag = true)
         messagesViewModel.listenAndSend(nearbyDevicesViewModel)
-        val messageText = "Test message"
-        val spreadingTime = 5
-        val distance = 2000f
-        val time = LocalDateTime.now()
-        val message = EnqueueMessage(messageText, time, distance, spreadingTime)
+        val message = EnqueueMessage(text = "Test message", time = LocalDateTime.now(), distance = 2000f, spreadingTime = 5)
         messagesViewModel.enqueueMessage(
-            message = messageText,
-            time = time,
-            distance = distance,
-            spreadingTime = spreadingTime
+            message = message.text,
+            time = message.time,
+            distance = message.distance,
+            spreadingTime = message.spreadingTime
         )
         assertTrue(messagesViewModel.pendingMessages.contains(message))
         messagesViewModel.setSendFlag(flag = true)
@@ -94,9 +70,78 @@ class SpreadingTimeTest {
         }
         assertFalse(messagesViewModel.pendingMessages.contains(message))
         withContext(Dispatchers.Default) {
-            delay((spreadingTime + 1).seconds)
+            delay(1.seconds)
         }
-        // TODO: check if message isn't in the network
+        assertTrue(emissions.last().size == 2) // Listener + Sender of the message
+        withContext(Dispatchers.Default) {
+            delay((message.spreadingTime + 1).seconds)
+        }
+        assertTrue(emissions.last().size == 1) // Only listener
+        job.cancel()
+    }
+
+    @Test
+    fun `messages sent in order`() = runTest {
+        val emissions = mutableListOf<List<Pair<Collektive<Uuid, Unit>, Long>>>()
+        val job = launch {
+            messagesViewModel.programs
+                .collect { programs ->
+                    Log.i("Active program", "${programs.size}")
+                    emissions.add(programs)
+                }
+        }
+        messagesViewModel.setOnlineStatus(flag = true)
+        messagesViewModel.listenAndSend(nearbyDevicesViewModel)
+        val firstMessage = EnqueueMessage(text = "1° Test message", time = LocalDateTime.now(), distance = 2000f, spreadingTime = 5)
+        messagesViewModel.enqueueMessage(
+            message = firstMessage.text,
+            time = firstMessage.time,
+            distance = firstMessage.distance,
+            spreadingTime = firstMessage.spreadingTime
+        )
+        val secondMessage = EnqueueMessage(text = "2° Test message", time = LocalDateTime.now(), distance = 2000f, spreadingTime = 8)
+        messagesViewModel.enqueueMessage(
+            message = secondMessage.text,
+            time = secondMessage.time,
+            distance = secondMessage.distance,
+            spreadingTime = secondMessage.spreadingTime
+        )
+        assertTrue(messagesViewModel.pendingMessages.contains(firstMessage))
+        assertTrue(messagesViewModel.pendingMessages.contains(secondMessage))
+        messagesViewModel.setSendFlag(flag = true)
+        withContext(Dispatchers.Default) {
+            delay(1.seconds)
+        }
+        // Testing FIFO queue scheduling
+        assertFalse(messagesViewModel.pendingMessages.contains(firstMessage))
+        assertTrue(messagesViewModel.pendingMessages.contains(secondMessage))
+        withContext(Dispatchers.Default) {
+            delay(1.seconds)
+        }
+        assertFalse(messagesViewModel.pendingMessages.contains(secondMessage))
+        var currentSpread = messagesViewModel.programs.value.mapNotNull { (program, _) ->
+            messagesValue[program]
+        }
+        assertEquals("", currentSpread[0]) // Listener
+        assertEquals("1° Test message", currentSpread[1])
+        assertEquals("2° Test message", currentSpread[2])
+        withContext(Dispatchers.Default) {
+            delay((firstMessage.spreadingTime + 1).seconds)
+        }
+        currentSpread = messagesViewModel.programs.value.mapNotNull { (program, _) ->
+            messagesValue[program]
+        }
+        assertEquals("", currentSpread[0])
+        assertEquals("2° Test message", currentSpread[1])
+        withContext(Dispatchers.Default) {
+            delay(((secondMessage.spreadingTime - firstMessage.spreadingTime) + 1).seconds)
+        }
+        currentSpread = messagesViewModel.programs.value.mapNotNull { (program, _) ->
+            messagesValue[program]
+        }
+        assertTrue(emissions.last().size == 1) // Only listener
+        assertEquals("", currentSpread[0])
+        job.cancel()
     }
 
     private fun randomLocation(provider: String = "mock"): Location {

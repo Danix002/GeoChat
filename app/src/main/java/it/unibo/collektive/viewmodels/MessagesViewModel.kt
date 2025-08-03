@@ -1,6 +1,7 @@
 package it.unibo.collektive.viewmodels
 
 import android.location.Location
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -99,6 +100,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * Related: `sendHeartbeatPulse()`, `listenAndSend()`, `Collektive`
      */
     private val _programs = MutableStateFlow<List<Pair<Collektive<Uuid, Unit>, Long>>>(emptyList())
+    val programs: StateFlow<List<Pair<Collektive<Uuid, Unit>, Long>>> get() = _programs
 
     // Current position of the device
     private val _position = MutableStateFlow<Location?>(null)
@@ -347,7 +349,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * Related: `sendHeartbeatPulse()`, `createProgram()`, `_programs`
      */
     fun listenAndSend(nearbyDevicesViewModel: NearbyDevicesViewModel) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(dispatcher) {
             val listenProgram = createProgram(
                 nearbyDevicesViewModel,
                 nearbyDevicesViewModel.userName.value,
@@ -361,10 +363,10 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                     _programs.value = _programs.value.filter { (_, endTime) -> now < endTime }
                     _programs.value.forEach { (program, _) -> program.cycle() }
                 }
-                .flowOn(Dispatchers.Default)
+                .flowOn(dispatcher)
                 .launchIn(this)
         }
-        sendHeartbeatPulse(nearbyDevicesViewModel)
+        dequeueAndSend(nearbyDevicesViewModel)
     }
 
     /**
@@ -390,10 +392,10 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      *
      * Related: `listenAndSend()`, `_programs`, `createProgram()`
      */
-    private fun sendHeartbeatPulse(
+    private fun dequeueAndSend(
         nearbyDevicesViewModel: NearbyDevicesViewModel
     ){
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(dispatcher) {
             while (isActive) {
                 val enqueueMessage = dequeueMessage()
                 if (enqueueMessage != null) {
@@ -424,7 +426,8 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * @param userName The name of the user to associate with the program.
      * @return A new instance of the program returned by [spreadAndListen].
      */
-    private suspend fun createProgram(
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal suspend fun createProgram(
         nearbyDevicesViewModel: NearbyDevicesViewModel,
         userName: String,
         message: EnqueueMessage
