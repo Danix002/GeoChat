@@ -9,11 +9,14 @@ import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.api.Aggregate
 import it.unibo.collektive.aggregate.api.mapNeighborhood
 import it.unibo.collektive.aggregate.api.neighboring
+import it.unibo.collektive.aggregate.api.share
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.model.Params
 import it.unibo.collektive.network.mqtt.MqttMailbox
+import it.unibo.collektive.stdlib.fields.fold
 import it.unibo.collektive.stdlib.spreading.gradientCast
+import it.unibo.collektive.stdlib.spreading.multiGradientCast
 import it.unibo.collektive.stdlib.util.Point3D
 import it.unibo.collektive.stdlib.util.euclideanDistance3D
 import kotlinx.coroutines.CoroutineDispatcher
@@ -493,6 +496,26 @@ class MessagesViewModel(
                 senders = _senders.value
             )
         )
+        val sources = sources(_received.value.isNotEmpty())
+        val updateNewMessages = spreadNewMessage(
+            sources = sources,
+            incomingMessages = _received.value,
+            position = position,
+            userName = nearbyDevicesViewModel.userName.value
+        )
+        val tmp = _received.value.mapValues { it.value.toMutableList() }.toMutableMap()
+        updateNewMessages.forEach { (_, messagesFromOthers) ->
+            messagesFromOthers.forEach { (key, list) ->
+                val currentList = tmp.getOrPut(key) { mutableListOf() }
+                list.forEach { msg ->
+                    val existing = currentList.find { it.from == msg.from && it.to == msg.to }
+                    if (existing == null) {
+                        currentList.removeIf { it.from == msg.from && it.to == msg.to }
+                        currentList.add(msg)
+                    }
+                }
+            }
+        }
         if(_received.value.isNotEmpty()) {
             addNewMessagesToList(_received.value.toMap())
         }
@@ -667,6 +690,80 @@ class MessagesViewModel(
             .mapValues { (key, list) ->
                 list.filter { it.isSenderValues && it.distance <= it.distanceForMessaging && it.to.first == key}
             }
+
+    /**
+     * Propagates received messages from neighboring nodes using a multi-source gradient,
+     * updating the distances and forwarding only messages within the allowed communication radius.
+     *
+     * This function relies on `multiGradientCast` to perform a distance-based diffusion from
+     * multiple sources, leveraging a 3D Euclidean distance metric. The propagation is constrained
+     * by each message's `distanceForMessaging`, ensuring that messages do not spread beyond
+     * their intended range.
+     *
+     * @param incomingMessages a map where each key is a source node ID (`Int`), and the corresponding
+     *        value is a list of [SourceDistances] representing messages received from that source.
+     * @param position the current 3D position of the local node, used to compute distance to neighbors.
+     *
+     * @return a nested map where the outer keys are neighbor node IDs (`Int`), and the values
+     *         are maps associating each message source ID to a filtered list of [SourceDistances].
+     *         Each message is updated with the cumulative distance and the current node's ID
+     *         as the new intermediate sender (`from`). Messages that exceed their allowed
+     *         `distanceForMessaging` are discarded.
+     *
+     * The returned map excludes empty lists, keeping only meaningful propagated data.
+     */
+    private fun Aggregate<Uuid>.spreadNewMessage(
+        sources: Set<Uuid>,
+        incomingMessages: Map<Uuid, List<Params>>,
+        position: Point3D,
+        userName: String
+    ) : Map<Uuid, Map<Uuid, List<Params>>> =
+        multiGradientCast(
+            sources = sources,
+            local = incomingMessages,
+            metric = euclideanDistance3D(position),
+            accumulateData = { fromSource, toNeighbor, value ->
+                value.mapValues { (_, list) ->
+                    list.mapNotNull {
+                        val totalDistance = it.distance + fromSource + toNeighbor
+                        if (totalDistance <= it.distanceForMessaging) {
+                            it.copy(from = localId to userName, distance = totalDistance)
+                        } else {
+                            null
+                        }
+                    }
+                }.filterValues { it.isNotEmpty() }
+            },
+        )
+            .filterKeys { it != localId }
+            .filterValues { it.isNotEmpty() }
+
+    /**
+     * Shares and aggregates sets of `Uuid` identifiers from neighboring nodes,
+     * optionally including the local node's identifier.
+     *
+     * This function uses a sharing mechanism (`share`) to exchange and collect sets of `Uuid`
+     * from neighbors in an `Aggregate<Uuid>` network. For each node, it collects the union
+     * of all sets received from neighbors and, if the `from` parameter is `true`, adds the
+     * local node's identifier (`localId`) to the resulting set.
+     *
+     * @param from indicates whether to include the local node's identifier in the resulting set.
+     *             If `true`, the local identifier is added to the aggregated set.
+     *             If `false`, only the aggregated set from neighbors is returned.
+     *
+     * @return a set (`Set<Uuid>`) containing the identifiers collected from neighbors,
+     *         including the local identifier only if `from` is `true`.
+     */
+    private fun Aggregate<Uuid>.sources(
+        from: Boolean,
+    ) : Set<Uuid> =
+        share(emptySet<Uuid>()) { neighborSources ->
+            neighborSources.fold(emptySet<Uuid>()) { accumulated, neighborSet ->
+                accumulated union neighborSet.value
+            }.let { collected ->
+                if (from) collected + localId else collected
+            }
+        }
 
     companion object {
         private const val IP_HOST = "192.168.1.3"
