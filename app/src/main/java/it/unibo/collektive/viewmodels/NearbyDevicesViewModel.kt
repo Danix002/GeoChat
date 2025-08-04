@@ -6,6 +6,7 @@ import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.api.neighboring
 import it.unibo.collektive.network.mqtt.MqttMailbox
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,13 +23,15 @@ import kotlin.uuid.Uuid
 /**
  * A ViewModel that manages the list of nearby devices.
  */
-class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
+class NearbyDevicesViewModel(
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    providedScope: CoroutineScope? = null
+) : ViewModel() {
+    private val externalScope = providedScope ?: viewModelScope
     private val _dataFlow = MutableStateFlow<Set<Uuid>>(emptySet())
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private val _userName = MutableStateFlow("User")
     private val _online = MutableStateFlow(true)
-
-    private val IP_HOST = "192.168.1.3"
 
     /**
      * The connection state.
@@ -103,7 +106,7 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
      * Start the Collektive program.
      */
     fun startCollektiveProgram() {
-        viewModelScope.launch(dispatcher) {
+        externalScope.launch(dispatcher) {
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
             flow {
@@ -116,5 +119,9 @@ class NearbyDevicesViewModel(private val dispatcher: CoroutineDispatcher = Dispa
                 _dataFlow.value = newResult
             }.flowOn(dispatcher).launchIn(this)
         }
+    }
+
+    companion object {
+        private const val IP_HOST = "192.168.1.3"
     }
 }

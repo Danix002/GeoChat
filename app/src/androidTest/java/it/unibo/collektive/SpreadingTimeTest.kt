@@ -8,7 +8,7 @@ import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.*
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,16 +23,18 @@ class SpreadingTimeTest {
     private lateinit var messagesViewModel: MessagesViewModel
     private lateinit var nearbyDevicesViewModel: NearbyDevicesViewModel
     private val messagesValue = mutableMapOf<Collektive<Uuid, Unit>, String>()
+    private lateinit var testScope: CoroutineScope
 
     @Before
-    fun setup() = runTest {
+    fun setup() = runBlocking {
         val mockLocation = randomLocation()
+        testScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         nearbyDevicesViewModel = mockk(relaxed = true)
         every { nearbyDevicesViewModel.deviceId } returns Uuid.random()
         every { nearbyDevicesViewModel.userName } returns MutableStateFlow("User")
 
-        messagesViewModel = spyk(MessagesViewModel(), recordPrivateCalls = true)
+        messagesViewModel = spyk(MessagesViewModel(providedScope = testScope), recordPrivateCalls = true)
         coEvery {
             messagesViewModel.createProgram(any(), any(), any())
         } answers {
@@ -45,7 +47,7 @@ class SpreadingTimeTest {
     }
 
     @Test
-    fun `message expires after spreading time`() = runTest {
+    fun `message expires after spreading time`() = runBlocking {
         val emissions = mutableListOf<List<Pair<Collektive<Uuid, Unit>, Long>>>()
         val job = launch {
             messagesViewModel.programs
@@ -65,23 +67,17 @@ class SpreadingTimeTest {
         )
         assertTrue(messagesViewModel.pendingMessages.contains(message))
         messagesViewModel.setSendFlag(flag = true)
-        withContext(Dispatchers.Default) {
-            delay(1.seconds)
-        }
+        delay(1.seconds)
         assertFalse(messagesViewModel.pendingMessages.contains(message))
-        withContext(Dispatchers.Default) {
-            delay(1.seconds)
-        }
+        delay(1.seconds)
         assertTrue(emissions.last().size == 2) // Listener + Sender of the message
-        withContext(Dispatchers.Default) {
-            delay((message.spreadingTime + 1).seconds)
-        }
+        delay((message.spreadingTime + 1).seconds)
         assertTrue(emissions.last().size == 1) // Only listener
         job.cancel()
     }
 
     @Test
-    fun `messages sent in order`() = runTest {
+    fun `messages sent in order`() = runBlocking {
         val emissions = mutableListOf<List<Pair<Collektive<Uuid, Unit>, Long>>>()
         val job = launch {
             messagesViewModel.programs
@@ -109,15 +105,11 @@ class SpreadingTimeTest {
         assertTrue(messagesViewModel.pendingMessages.contains(firstMessage))
         assertTrue(messagesViewModel.pendingMessages.contains(secondMessage))
         messagesViewModel.setSendFlag(flag = true)
-        withContext(Dispatchers.Default) {
-            delay(1.seconds)
-        }
+        delay(1.seconds)
         // Testing FIFO queue scheduling
         assertFalse(messagesViewModel.pendingMessages.contains(firstMessage))
         assertTrue(messagesViewModel.pendingMessages.contains(secondMessage))
-        withContext(Dispatchers.Default) {
-            delay(1.seconds)
-        }
+        delay(1.seconds)
         assertFalse(messagesViewModel.pendingMessages.contains(secondMessage))
         var currentSpread = messagesViewModel.programs.value.mapNotNull { (program, _) ->
             messagesValue[program]
@@ -125,17 +117,13 @@ class SpreadingTimeTest {
         assertEquals("", currentSpread[0]) // Listener
         assertEquals("1° Test message", currentSpread[1])
         assertEquals("2° Test message", currentSpread[2])
-        withContext(Dispatchers.Default) {
-            delay((firstMessage.spreadingTime + 1).seconds)
-        }
+        delay((firstMessage.spreadingTime + 1).seconds)
         currentSpread = messagesViewModel.programs.value.mapNotNull { (program, _) ->
             messagesValue[program]
         }
         assertEquals("", currentSpread[0])
         assertEquals("2° Test message", currentSpread[1])
-        withContext(Dispatchers.Default) {
-            delay(((secondMessage.spreadingTime - firstMessage.spreadingTime) + 1).seconds)
-        }
+        delay(((secondMessage.spreadingTime - firstMessage.spreadingTime) + 1).seconds)
         currentSpread = messagesViewModel.programs.value.mapNotNull { (program, _) ->
             messagesValue[program]
         }
@@ -152,5 +140,10 @@ class SpreadingTimeTest {
         location.accuracy = Random.nextFloat() * 10
         location.time = System.currentTimeMillis()
         return location
+    }
+
+    @After
+    fun tearDown() {
+        testScope.cancel()
     }
 }
