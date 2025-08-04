@@ -496,7 +496,7 @@ class MessagesViewModel(
                 senders = _senders.value
             )
         )
-        val sources = sources(_received.value.isNotEmpty())
+        /*val sources = sources(_received.value.isNotEmpty())
         val updateNewMessages = spreadNewMessage(
             sources = sources,
             incomingMessages = _received.value,
@@ -515,7 +515,7 @@ class MessagesViewModel(
                     }
                 }
             }
-        }
+        }*/
         if(_received.value.isNotEmpty()) {
             addNewMessagesToList(_received.value.toMap())
         }
