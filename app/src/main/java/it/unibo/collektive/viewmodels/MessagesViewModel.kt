@@ -17,6 +17,7 @@ import it.unibo.collektive.stdlib.spreading.gradientCast
 import it.unibo.collektive.stdlib.util.Point3D
 import it.unibo.collektive.stdlib.util.euclideanDistance3D
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,8 +49,11 @@ import kotlin.time.Duration.Companion.seconds
  *
  * @param dispatcher Coroutine dispatcher to perform asynchronous tasks (default: Dispatchers.IO)
  */
-class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatchers.IO) : ViewModel() {
-    private val IP_HOST = "192.168.1.3"
+class MessagesViewModel(
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
+    providedScope: CoroutineScope? = null
+) : ViewModel() {
+    private val externalScope = providedScope ?: viewModelScope
 
     // Map of senders currently detected (deviceId -> (distance, username, message))
     private val _senders = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
@@ -206,7 +210,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * automatically cancelled when the ViewModel is cleared.
      */
     init {
-        viewModelScope.launch(dispatcher) {
+        externalScope.launch(dispatcher) {
             while (true) {
                 _messages.value.clear()
                 delay(5.minutes)
@@ -349,7 +353,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
      * Related: `sendHeartbeatPulse()`, `createProgram()`, `_programs`
      */
     fun listenAndSend(nearbyDevicesViewModel: NearbyDevicesViewModel) {
-        viewModelScope.launch(dispatcher) {
+        externalScope.launch(dispatcher) {
             val listenProgram = createProgram(
                 nearbyDevicesViewModel,
                 nearbyDevicesViewModel.userName.value,
@@ -395,7 +399,7 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
     private fun dequeueAndSend(
         nearbyDevicesViewModel: NearbyDevicesViewModel
     ){
-        viewModelScope.launch(dispatcher) {
+        externalScope.launch(dispatcher) {
             while (isActive) {
                 val enqueueMessage = dequeueMessage()
                 if (enqueueMessage != null) {
@@ -557,9 +561,9 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
                 source = isSender,
                 local = deviceId to Triple(distance, userName, message),
                 metric = euclideanDistance3D(position),
-                accumulateData = { fromSource, toNeighbor, dist ->
+                accumulateData = { fromSource, toNeighbor, value ->
                     if (fromSource + toNeighbor <= distance.toDouble()) {
-                        dist
+                        value
                     } else {
                         deviceId to Triple(MAX_VALUE, userName, "")
                     }
@@ -663,4 +667,8 @@ class MessagesViewModel(private val dispatcher: CoroutineDispatcher = Dispatcher
             .mapValues { (key, list) ->
                 list.filter { it.isSenderValues && it.distance <= it.distanceForMessaging && it.to.first == key}
             }
+
+    companion object {
+        private const val IP_HOST = "192.168.1.3"
+    }
 }
