@@ -515,7 +515,8 @@ class MessagesViewModel(
                     }
                 }
             }
-        }*/
+        }
+        _received.value = tmp*/
         if(_received.value.isNotEmpty()) {
             addNewMessagesToList(_received.value.toMap())
         }
