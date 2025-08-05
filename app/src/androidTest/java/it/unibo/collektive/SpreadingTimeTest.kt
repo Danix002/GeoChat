@@ -76,6 +76,16 @@ class SpreadingTimeTest {
         job.cancel()
     }
 
+    /**
+     * Tests that messages are sent in FIFO order based on their enqueue time and spreading duration.
+     *
+     * ⚠️ **Note**: This test is sensitive to coroutine scheduling and wall-clock timing.
+     * When running the full test suite, this test may occasionally fail due to timing interleavings
+     * caused by concurrent tests or system load. If you encounter a failure here,
+     * try running this test **in isolation**.
+     *
+     * This is expected behavior under certain conditions and does not necessarily indicate a bug.
+     */
     @Test
     fun `messages sent in order`() = runBlocking {
         val emissions = mutableListOf<List<Pair<Collektive<Uuid, Unit>, Long>>>()

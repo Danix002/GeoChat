@@ -508,9 +508,9 @@ class MessagesViewModel(
             messagesFromOthers.forEach { (key, list) ->
                 val currentList = tmp.getOrPut(key) { mutableListOf() }
                 list.forEach { msg ->
-                    val existing = currentList.find { it.from == msg.from && it.to == msg.to }
+                    val existing = currentList.find { it.from == msg.from && it.to == msg.to && it.message == msg.message}
                     if (existing == null) {
-                        currentList.removeIf { it.from == msg.from && it.to == msg.to }
+                        currentList.removeIf { it.from == msg.from && it.to == msg.to && it.message == msg.message }
                         currentList.add(msg)
                     }
                 }
