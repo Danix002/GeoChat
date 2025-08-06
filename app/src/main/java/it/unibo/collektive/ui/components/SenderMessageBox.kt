@@ -62,7 +62,8 @@ fun SenderMessageBox(
     messagesViewModel: MessagesViewModel,
     communicationSettingViewModel: CommunicationSettingViewModel,
     nearbyDevicesViewModel: NearbyDevicesViewModel,
-    fusedLocationProviderClient: FusedLocationProviderClient
+    fusedLocationProviderClient: FusedLocationProviderClient,
+    userName: String
 ){
     var messageText by remember { mutableStateOf("") }
     var messagingFlag by remember { mutableStateOf(false)}
@@ -75,7 +76,7 @@ fun SenderMessageBox(
             if (location != null) {
                 messagesViewModel.addSentMessageToList(
                     nearbyDevicesViewModel = nearbyDevicesViewModel,
-                    userName = nearbyDevicesViewModel.userName.value,
+                    userName = userName,
                     message = messageText,
                     time = LocalDateTime.now()
                 )

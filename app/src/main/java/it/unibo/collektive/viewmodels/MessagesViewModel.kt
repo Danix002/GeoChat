@@ -373,11 +373,11 @@ class MessagesViewModel(
      *
      * Related: `sendHeartbeatPulse()`, `createProgram()`, `_programs`
      */
-    fun listenAndSend(nearbyDevicesViewModel: NearbyDevicesViewModel) {
+    fun listenAndSend(nearbyDevicesViewModel: NearbyDevicesViewModel, userName: String) {
         externalScope.launch(dispatcher) {
             val listenProgram = createProgram(
                 nearbyDevicesViewModel,
-                nearbyDevicesViewModel.userName.value,
+                userName,
                 EnqueueMessage("", LocalDateTime.now(), MAX_VALUE, 0)
             )
             _programs.value = listOf(listenProgram to Long.MAX_VALUE)

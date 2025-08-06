@@ -46,6 +46,16 @@ class SpreadingTimeTest {
         messagesViewModel.setLocation(mockLocation)
     }
 
+    /**
+     * Tests that messages expires after spreading time set by user.
+     *
+     * ⚠️ **Note**: This test is sensitive to coroutine scheduling and wall-clock timing.
+     * When running the full test suite, this test may occasionally fail due to timing interleavings
+     * caused by concurrent tests or system load. If you encounter a failure here,
+     * try running this test **in isolation**.
+     *
+     * This is expected behavior under certain conditions and does not necessarily indicate a bug.
+     */
     @Test
     fun `message expires after spreading time`() = runBlocking {
         val emissions = mutableListOf<List<Pair<Collektive<Uuid, Unit>, Long>>>()
@@ -57,7 +67,7 @@ class SpreadingTimeTest {
                 }
         }
         messagesViewModel.setOnlineStatus(flag = true)
-        messagesViewModel.listenAndSend(nearbyDevicesViewModel)
+        messagesViewModel.listenAndSend(nearbyDevicesViewModel, nearbyDevicesViewModel.userName.value)
         val message = EnqueueMessage(text = "Test message", time = LocalDateTime.now(), distance = 2000f, spreadingTime = 5)
         messagesViewModel.enqueueMessage(
             message = message.text,
@@ -97,7 +107,7 @@ class SpreadingTimeTest {
                 }
         }
         messagesViewModel.setOnlineStatus(flag = true)
-        messagesViewModel.listenAndSend(nearbyDevicesViewModel)
+        messagesViewModel.listenAndSend(nearbyDevicesViewModel, nearbyDevicesViewModel.userName.value)
         val firstMessage = EnqueueMessage(text = "1° Test message", time = LocalDateTime.now(), distance = 2000f, spreadingTime = 5)
         messagesViewModel.enqueueMessage(
             message = firstMessage.text,
