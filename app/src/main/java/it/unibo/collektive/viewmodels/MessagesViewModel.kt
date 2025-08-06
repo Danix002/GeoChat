@@ -167,9 +167,9 @@ class MessagesViewModel(
             }
             Message(
                 text = newMessage.message,
-                userName = newMessage.to.second,
-                sender = newMessage.to.first,
-                receiver = newMessage.from.first,
+                userName = newMessage.sender.second,
+                sender = newMessage.sender.first,
+                receiver = newMessage.receiver.first,
                 time = "${newMessage.timestamp.hour}:$minute",
                 distance = ceil(newMessage.distance).toFloat(),
                 timestamp = newMessage.timestamp
@@ -328,8 +328,21 @@ class MessagesViewModel(
         }
     }
 
+    /**
+     * Checks whether this [Params] instance represents the same logical message as another.
+     *
+     * Two messages are considered the same if they originate from the same [sender]
+     * and contain identical message content ([message]), regardless of the receiver,
+     * distance, timestamp, or any other metadata.
+     *
+     * This is useful when filtering out duplicate messages that were relayed
+     * multiple times but originate from the same source.
+     *
+     * @param other The [Params] instance to compare against.
+     * @return `true` if both messages have the same [sender] and [message], `false` otherwise.
+     */
     private fun Params.isSameMessage(other: Params): Boolean {
-        return this.to == other.to && this.message == other.message
+        return this.sender == other.sender && this.message == other.message
     }
 
     /**
@@ -676,8 +689,8 @@ class MessagesViewModel(
         neighboring(devices).alignedMap(euclideanDistance3D(position)) { _: Uuid, deviceValues: Map<Uuid, Triple<Float, String, String>>, distance: Double ->
             deviceValues.entries.map { (sender, messagingParams) ->
                 Params(
-                    to = sender to messagingParams.second,
-                    from = localId to userName,
+                    sender = sender to messagingParams.second,
+                    receiver = localId to userName,
                     distanceForMessaging = messagingParams.first,
                     distance = distance,
                     message = messagingParams.third,
@@ -691,7 +704,7 @@ class MessagesViewModel(
         }.toMap()
             .filterKeys { senders.containsKey(it) && it != localId }
             .mapValues { (key, list) ->
-                list.filter { it.isSenderValues && it.distance <= it.distanceForMessaging && it.to.first == key}
+                list.filter { it.isSenderValues && it.distance <= it.distanceForMessaging && it.sender.first == key}
             }
 
     /**
@@ -730,11 +743,11 @@ class MessagesViewModel(
                     list.mapNotNull {
                         val totalDistance = it.distance + fromSource + toNeighbor
                         if (totalDistance <= it.distanceForMessaging) {
-                            it.copy(from = localId to userName, distance = totalDistance)
+                            it.copy(receiver = localId to userName, distance = totalDistance)
                         } else {
                             null
                         }
-                    }.filter { it.to.first != localId }
+                    }.filter { it.sender.first != localId }
                 }.filterValues { it.isNotEmpty() }
             },
         )

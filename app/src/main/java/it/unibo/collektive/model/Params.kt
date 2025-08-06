@@ -3,7 +3,6 @@ package it.unibo.collektive.model
 import java.time.LocalDateTime
 import kotlin.uuid.Uuid
 import kotlinx.serialization.Serializable
-import kotlinx.datetime.serializers.LocalDateTimeIso8601Serializer
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
@@ -19,9 +18,9 @@ import kotlinx.serialization.encoding.Encoder
  * spatial distances involved, the message content, timing, and a flag indicating
  * if the sender is actively propagating the message.
  *
- * @property to A pair containing the recipient device's unique identifier ([Uuid]) and
+ * @property sender A pair containing the recipient device's unique identifier ([Uuid]) and
  *              its associated username or label.
- * @property from A pair containing the sender device's unique identifier ([Uuid]) and
+ * @property receiver A pair containing the sender device's unique identifier ([Uuid]) and
  *                its associated username or label.
  * @property distanceForMessaging The distance value reported or estimated by the sender,
  *                               used for message propagation or filtering.
@@ -34,8 +33,8 @@ import kotlinx.serialization.encoding.Encoder
  */
 @Serializable
 data class Params(
-    val to: Pair<Uuid, String>,
-    val from: Pair<Uuid, String>,
+    val sender: Pair<Uuid, String>,
+    val receiver: Pair<Uuid, String>,
     val distanceForMessaging: Float,
     val distance: Double,
     val message: String,
