@@ -1,6 +1,5 @@
 package it.unibo.collektive
 
-import android.util.Log
 import it.unibo.collektive.stdlib.util.Point3D
 import kotlin.math.*
 import kotlin.random.Random
@@ -16,7 +15,6 @@ class GradientLogicTest {
         val fromSource = 0.0
         val toNeighbor = testEuclideanDistance3D(source, neighbor)
         val accepted = fromSource + toNeighbor <= maxDistance.toDouble()
-        Log.i("Distance", "$toNeighbor")
         assertTrue("Expected message to be accepted", accepted)
     }
 
@@ -28,7 +26,6 @@ class GradientLogicTest {
         val fromSource = 0.0
         val toNeighbor = testEuclideanDistance3D(source, neighbor)
         val accepted = fromSource + toNeighbor <= maxDistance.toDouble()
-        Log.i("Distance", "$toNeighbor")
         assertFalse("Expected message to be rejected", accepted)
     }
 
@@ -45,7 +42,6 @@ class GradientLogicTest {
         for ((fromSource, toNeighbor, expected) in cases) {
             val total = fromSource + toNeighbor
             val accepted = total <= maxDistance
-            println("fromSource=$fromSource, toNeighbor=$toNeighbor → $accepted")
             assertEquals("Expected $expected for total $total", expected, accepted)
         }
     }

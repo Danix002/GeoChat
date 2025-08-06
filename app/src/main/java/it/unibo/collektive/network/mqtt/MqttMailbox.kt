@@ -15,13 +15,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialFormat
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 import kotlin.time.Duration
 
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
 import kotlin.uuid.Uuid
 
 /**
@@ -75,6 +76,7 @@ class MqttMailbox(
         }
     }
 
+    @OptIn(ExperimentalTime::class)
     private fun cleanupMessages() {
         val now = Clock.System.now()
         messages.entries.removeIf { (_, msg) -> now - msg.timestamp > retentionTime }

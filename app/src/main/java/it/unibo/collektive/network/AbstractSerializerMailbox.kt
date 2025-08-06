@@ -10,8 +10,6 @@ import it.unibo.collektive.networking.SerializedMessage
 import it.unibo.collektive.networking.SerializedMessageFactory
 import it.unibo.collektive.path.Path
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import kotlinx.serialization.BinaryFormat
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialFormat
@@ -21,7 +19,10 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.encodeToString
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * An abstract mailbox that serializes messages before sending them to the network.
@@ -31,13 +32,14 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     private val serializer: SerialFormat,
     private val retentionTime: Duration,
 ) : Mailbox<ID> {
-    protected data class TimedMessage<ID : Any>(val message: Message<ID, Any?>, val timestamp: Instant)
+    protected data class TimedMessage<ID : Any> @OptIn(ExperimentalTime::class) constructor(val message: Message<ID, Any?>, val timestamp: Instant)
 
     protected val messages = mutableMapOf<ID, TimedMessage<ID>>()
     /**
      * Thread-safe neighbor data structure, implemented as ConcurrentHashMap
      * that maps each deviceId to the timestamp of the last heartbeat received.
      */
+    @OptIn(ExperimentalTime::class)
     private val neighbors = ConcurrentHashMap<ID, Instant>()
     private val factory = object : SerializedMessageFactory<ID, Any?>(serializer) {}
     private val neighborMessageFlow = MutableSharedFlow<Message<ID, Any?>>()
@@ -56,6 +58,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     /**
      * Add the [deviceId] to the list of neighbors.
      */
+    @OptIn(ExperimentalTime::class)
     fun addNeighbor(deviceId: ID) {
         neighbors[deviceId] = Clock.System.now()
     }
@@ -63,6 +66,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     /**
      * Remove neighbors that have not sent a heartbeat in a while.
      */
+    @OptIn(ExperimentalTime::class)
     fun cleanupNeighbors(neighborRetention: Duration) {
         val now = Clock.System.now()
         neighbors.entries.removeIf { (_, timestamp) -> now - timestamp > neighborRetention }
@@ -71,6 +75,7 @@ abstract class AbstractSerializerMailbox<ID : Any>(
     /**
      * Returns the list of neighbors.
      */
+    @OptIn(ExperimentalTime::class)
     fun neighbors(): Set<ID> = neighbors.keys
 
     final override val inMemory: Boolean
@@ -83,11 +88,13 @@ abstract class AbstractSerializerMailbox<ID : Any>(
         }
     }
 
+    @OptIn(ExperimentalTime::class)
     final override fun deliverableReceived(message: Message<ID, *>) {
         messages[message.senderId] = TimedMessage(message, Clock.System.now())
         neighborMessageFlow.tryEmit(message)
     }
 
+    @OptIn(ExperimentalTime::class)
     final override fun currentInbound(): NeighborsData<ID> = object : NeighborsData<ID> {
         // First, remove all messages that are older than the retention time
         init {
