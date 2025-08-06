@@ -3,12 +3,14 @@ package it.unibo.collektive.ui.components
 import android.location.Location
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,50 +70,55 @@ fun SenderMessageBox(
     var messageText by remember { mutableStateOf("") }
     var messagingFlag by remember { mutableStateOf(false)}
     var errorPositionPopup by remember { mutableStateOf(false) }
-    var isWaitingForLocation by remember { mutableStateOf(false) }
-    var flagTimeout by remember { mutableStateOf(false) }
+    var isWaitingForLocation by remember { mutableStateOf(true) }
 
     LaunchedEffect(messagingFlag) {
         fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
             if (location != null) {
-                messagesViewModel.addSentMessageToList(
-                    nearbyDevicesViewModel = nearbyDevicesViewModel,
-                    userName = userName,
-                    message = messageText,
-                    time = LocalDateTime.now()
-                )
-                messageText = ""
-                messagingFlag = false
-                if(messagesViewModel.pendingMessages.isEmpty()) {
-                    messagesViewModel.setSendFlag(flag = false)
+                if(messagingFlag) {
+                    val time = LocalDateTime.now()
+                    val distance = communicationSettingViewModel.getDistance()
+                    val spreadingTime = communicationSettingViewModel.getTime().toInt()
+                    messagesViewModel.enqueueMessage(messageText, time, distance, spreadingTime)
+                    messagesViewModel.setSendFlag(flag = true)
+                    messagesViewModel.addSentMessageToList(
+                        nearbyDevicesViewModel = nearbyDevicesViewModel,
+                        userName = userName,
+                        message = messageText,
+                        time = LocalDateTime.now()
+                    )
+                    messageText = ""
+                    messagingFlag = false
+                    if (messagesViewModel.pendingMessages.isEmpty()) {
+                        messagesViewModel.setSendFlag(flag = false)
+                    }
                 }
             } else {
                 errorPositionPopup = true
             }
         }
-
     }
     LaunchedEffect(isWaitingForLocation) {
-        var timeout = 25
-        while(isWaitingForLocation && timeout > 0) {
+        while(isWaitingForLocation) {
             fusedLocationProviderClient.lastLocation.addOnSuccessListener { location: Location? ->
                 if(location != null) {
                     isWaitingForLocation = false
                     messagingFlag = false
+                    errorPositionPopup = false
                     return@addOnSuccessListener
                 }
-                timeout--
             }
             delay(0.5.seconds)
         }
-        if(timeout == 0){
-            flagTimeout = true
-        }
     }
 
-    if (isWaitingForLocation && !flagTimeout) {
+    if (isWaitingForLocation) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Purple40)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = Purple40)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Waiting for the position...", color = Purple40)
+            }
         }
     } else {
         Box(
@@ -141,15 +148,8 @@ fun SenderMessageBox(
                         )
                     )
                     IconButton(onClick = {
-                        val time = LocalDateTime.now()
-                        val distance = communicationSettingViewModel.getDistance()
-                        val spreadingTime = communicationSettingViewModel.getTime().toInt()
-                        if (messageText.isNotBlank()) {
-                            messagesViewModel.enqueueMessage(messageText, time, distance, spreadingTime)
-                            if (!messagingFlag) {
-                                messagesViewModel.setSendFlag(flag = true)
-                                messagingFlag = true
-                            }
+                        if (messageText.isNotBlank() && !errorPositionPopup && !messagingFlag) {
+                            messagingFlag = true
                         }
                     }) {
                         Icon(

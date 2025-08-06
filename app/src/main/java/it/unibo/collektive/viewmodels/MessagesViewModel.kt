@@ -135,6 +135,23 @@ class MessagesViewModel(
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
     /**
+     * Epoch time (in milliseconds) indicating when this device became a source.
+     *
+     * This is `null` if the device is not currently a source.
+     * Used exclusively for testing purposes.
+     */
+    private val _sourceSince = MutableStateFlow<Long?>(null)
+    val sourceSince: StateFlow<Long?> get() = _sourceSince
+
+    fun markAsSource(now: Long = System.currentTimeMillis()) {
+        _sourceSince.value = now
+    }
+
+    fun clearSourceStatus() {
+        _sourceSince.value = null
+    }
+
+    /**
      * Integrates newly received messages into the current local message list,
      * ensuring that duplicates and previously deleted messages are not re-added.
      *
@@ -241,6 +258,10 @@ class MessagesViewModel(
         _sendFlag.value = flag
     }
 
+    fun getSendFlag(): Boolean {
+        return _sendFlag.value
+    }
+
     /**
      * Updates the current geographic location of the device.
      *
@@ -252,6 +273,10 @@ class MessagesViewModel(
     fun setLocation(location: Location?) {
         _position.value = location
         _coordinates.value = Point3D(Triple(_position.value!!.latitude, _position.value!!.longitude, _position.value!!.altitude))
+    }
+
+    fun getLocation(): Location? {
+        return _position.value
     }
 
     /**
@@ -590,7 +615,7 @@ class MessagesViewModel(
         deviceId: Uuid,
         userName: String,
         distance: Float,
-        position: Point3D = _coordinates.value!!,
+        position: Point3D = _coordinates.value?: Point3D(Triple(Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE)),
         message: String,
         nearbyDevicesViewModel: NearbyDevicesViewModel,
         time: LocalDateTime
@@ -783,6 +808,6 @@ class MessagesViewModel(
 
 
     companion object {
-        private const val IP_HOST = "192.168.1.5"
+        private const val IP_HOST = "broker.emqx.io"
     }
 }

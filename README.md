@@ -3,28 +3,34 @@
 This application leverages the [**Collektive**](https://github.com/Collektive/collektive) **library** to model a decentralized communication system based on spatial proximity. Connected devices can send and receive messages within a global chat, provided they are within a certain distance of each other.
 
 The project is currently under development and offers a minimal working version as a proof of concept.
+# 🔄 MQTT Broker Information
 
-# How To Run
+This application **currently uses the public broker** provided by **EMQX** at: `broker.emqx.io`.
+
+However, the app was developed and tested using a **local Mosquitto broker**.  
+If you prefer to run your own broker locally (recommended for development), follow the tutorial below to install and configure **Eclipse Mosquitto**.
+
+## How To Run
 - Install Mosquitto 
 - Change IP_HOST value in:
   - [MessagesViewModel.kt](app/src/main/java/it/unibo/collektive/viewmodels/MessagesViewModel.kt) 
   - [NearbyDevicesViewModel.kt](app/src/main/java/it/unibo/collektive/viewmodels/NearbyDevicesViewModel.kt)
 
-# 🧪 Local MQTT Broker For Development
+## 🧪 Local MQTT Broker For Development
 
 This guide explains how to install and run a **local MQTT broker** using **Eclipse Mosquitto**.
 
 ---
 
-## ✅ Goal
+### ✅ Goal
 
 Install a local MQTT broker accessible at `localhost:1883`.
 
 ---
 
-## 🧰 Installing Mosquitto
+### 🧰 Installing Mosquitto
 
-### 🔹 Windows
+#### 🔹 Windows
 
 1. Go to [mosquitto.org/download/](https://mosquitto.org/download/)
 2. Find the **Windows** section
@@ -35,16 +41,16 @@ Install a local MQTT broker accessible at `localhost:1883`.
     - ✅ Use a default path (`C:\Program Files\mosquitto`)
     - ✅ Insert `C:\Program Files\mosquitto` path in to environment variables of the system
 
-### 🔹 Linux (Debian/Ubuntu)
+#### 🔹 Linux (Debian/Ubuntu)
 
 ```bash
     sudo apt update
     sudo apt install mosquitto mosquitto-clients
 ```
 
-## 🚀 Running The Broker
+### 🚀 Running The Broker
 
-### ▶️ Windows
+#### ▶️ Windows
 
 ```shell
     mosquitto -v -c "mosquitto/config/mosquitto.conf"
@@ -61,7 +67,7 @@ To stop:
    net stop mosquitto
 ```
 
-### ▶️ Linux
+#### ▶️ Linux
 
 Copy your configuration file to the Mosquitto config directory:
 ```bash

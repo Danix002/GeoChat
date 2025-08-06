@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationCallback: LocationCallback
     private lateinit var messagesViewModel: MessagesViewModel
     private var isFirstLaunch = true
+    private var hasAskedToEnableLocation = false
 
     /**
      * Called when the activity is resumed.
@@ -136,11 +137,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         locationSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            if (result.resultCode == RESULT_OK) {
-                startApp()
-            } else {
-                requestPermissionOutOfApp()
-            }
+            startApp()
         }
         locationPermissionRequest = registerForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
@@ -208,20 +205,22 @@ class MainActivity : ComponentActivity() {
                 builder.build()
             )
         task.addOnSuccessListener {
+            hasAskedToEnableLocation = true
             startLocationUpdates(locationRequest)
             startApp()
         }
         task.addOnFailureListener { exception ->
-            if (exception is ResolvableApiException) {
+            startLocationUpdates(locationRequest)
+            if (exception is ResolvableApiException && !hasAskedToEnableLocation) {
                 try {
-                    startLocationUpdates(locationRequest)
+                    hasAskedToEnableLocation = true
                     val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution).build()
                     locationSettingsLauncher.launch(intentSenderRequest)
                 } catch (sendEx: IntentSender.SendIntentException) {
-                    requestPermissionOutOfApp()
+                    startApp()
                 }
             } else {
-                requestPermissionOutOfApp()
+                startApp()
             }
         }
     }

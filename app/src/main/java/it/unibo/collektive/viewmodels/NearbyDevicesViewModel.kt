@@ -122,6 +122,6 @@ class NearbyDevicesViewModel(
     }
 
     companion object {
-        private const val IP_HOST = "192.168.1.5"
+        private const val IP_HOST = "broker.emqx.io"
     }
 }
