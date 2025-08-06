@@ -52,7 +52,6 @@ fun ChatPage(
     modifier: Modifier,
     fusedLocationProviderClient: FusedLocationProviderClient
 ) {
-    val devicesInChat by messagesViewModel.devicesInChat.collectAsState()
     var isLoading by remember { mutableStateOf(false) }
     var isReadyToShowChat by remember { mutableStateOf(false) }
 
@@ -106,18 +105,23 @@ fun ChatPage(
                     )
                 }
                 Text(text = "Back to Home")
-                IconButton(
-                    onClick = { isLoading = true }
+                Box(modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(7.dp),
+                    contentAlignment = Alignment.CenterEnd
                 ) {
-                    Icon(
-                        imageVector = Icons.TwoTone.Delete,
-                        contentDescription = "Clear Chat",
-                        tint = Purple40
-                    )
-                }
-                Text(text = "Clear Chat")
-                Box(modifier = Modifier.fillMaxWidth().padding(end = 8.dp), contentAlignment = Alignment.CenterEnd) {
-                    Text(text = " [$devicesInChat] Online")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { isLoading = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.TwoTone.Delete,
+                                contentDescription = "Clear Chat",
+                                tint = Purple40
+                            )
+                        }
+                        Text(text = "Clear Chat")
+                    }
                 }
             }
             if (isLoading || !isReadyToShowChat) {

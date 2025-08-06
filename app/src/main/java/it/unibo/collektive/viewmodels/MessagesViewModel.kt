@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlin.uuid.Uuid
 import java.time.LocalDateTime
 import kotlin.Float.Companion.MAX_VALUE
+import kotlin.math.ceil
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -170,7 +171,7 @@ class MessagesViewModel(
                 sender = newMessage.to.first,
                 receiver = newMessage.from.first,
                 time = "${newMessage.timestamp.hour}:$minute",
-                distance = newMessage.distance.toFloat(),
+                distance = ceil(newMessage.distance).toFloat(),
                 timestamp = newMessage.timestamp
             )
         }.filterNot { msg ->
@@ -325,6 +326,10 @@ class MessagesViewModel(
         } else {
             null
         }
+    }
+
+    private fun Params.isSameMessage(other: Params): Boolean {
+        return this.to == other.to && this.message == other.message
     }
 
     /**
@@ -507,13 +512,10 @@ class MessagesViewModel(
         updateNewMessages.forEach { (_, messagesFromOthers) ->
             messagesFromOthers.forEach { (key, list) ->
                 val currentList = tmp.getOrPut(key) { mutableListOf() }
-                list.forEach { msg ->
-                    val existing = currentList.find { it.from == msg.from && it.to == msg.to && it.message == msg.message}
-                    if (existing == null) {
-                        currentList.removeIf { it.from == msg.from && it.to == msg.to && it.message == msg.message }
-                        currentList.add(msg)
-                    }
+                val newMessages = list.filter { newMsg ->
+                    currentList.none { existing -> existing.isSameMessage(newMsg) }
                 }
+                currentList.addAll(newMessages)
             }
         }
         _received.value = tmp.mapValues { it.value.toList() }.toMutableMap()
@@ -732,7 +734,7 @@ class MessagesViewModel(
                         } else {
                             null
                         }
-                    }
+                    }.filter { it.to.first != localId }
                 }.filterValues { it.isNotEmpty() }
             },
         )
@@ -766,7 +768,8 @@ class MessagesViewModel(
             }
         }
 
+
     companion object {
-        private const val IP_HOST = "192.168.1.3"
+        private const val IP_HOST = "192.168.1.5"
     }
 }
