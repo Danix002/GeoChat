@@ -67,7 +67,7 @@ fun UserNameEditPopUp(onDismissClick: () -> Unit, currentUserName: String, nearb
                     modifier = Modifier
                         .fillMaxWidth(),
                     singleLine = true,
-                    textStyle = TextStyle(fontStyle = FontStyle.Italic, color = Color.Gray),
+                    textStyle = TextStyle(color = Color.Black),
                     value = userNameText,
                     onValueChange = { userNameText = it },
                     colors = OutlinedTextFieldDefaults.colors(
