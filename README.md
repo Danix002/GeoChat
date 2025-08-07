@@ -2,7 +2,20 @@
 
 This application leverages the [**Collektive**](https://github.com/Collektive/collektive) **library** to model a decentralized communication system based on spatial proximity. Connected devices can send and receive messages within a global chat, provided they are within a certain distance of each other.
 
-The project is currently under development and offers a minimal working version as a proof of concept.
+
+![Start app](gif/screen-1.gif)
+![Change name](gif/screen-2.gif)
+![Start chat](gif/screen-3.gif)
+![Simple use case](gif/screen-4.gif)
+
+It is possible to send duplicate messages (e.g., the same text sent multiple times in a row), but recipients will only receive each unique message once. That is, a device that has already received a given message will not receive it again, even if it is sent multiple times.
+
+![Clear chat](gif/screen-5.gif)
+
+The chat is automatically reset every 5 minutes, meaning that previously displayed messages are cleared from the user interface.
+
+A simulation of this application is available in the companion repository [**GeoChat-Simulation**](https://github.com/Danix002/collektive-examples/tree/feat/GeoChat).
+
 # 🔄 MQTT Broker Information
 
 This application **currently uses the public broker** provided by **EMQX** at: `broker.emqx.io`.
