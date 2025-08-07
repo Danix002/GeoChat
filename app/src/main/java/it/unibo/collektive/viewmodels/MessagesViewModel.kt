@@ -449,7 +449,7 @@ class MessagesViewModel(
         nearbyDevicesViewModel: NearbyDevicesViewModel
     ){
         externalScope.launch(dispatcher) {
-            while (isActive) {
+            while (coroutineContext.isActive) {
                 val enqueueMessage = dequeueMessage()
                 if (enqueueMessage != null) {
                     if (enqueueMessage.spreadingTime.seconds < MINIMUM_TIME_TO_SEND) {
@@ -460,9 +460,12 @@ class MessagesViewModel(
                         nearbyDevicesViewModel.userName.value,
                         enqueueMessage
                     )
-                    val endTime = timeProvider.currentTimeMillis() + ((enqueueMessage.spreadingTime + DELAY)* 1000L)
+                    val endTime = timeProvider.currentTimeMillis() + (enqueueMessage.spreadingTime * 1000L)
                     _programs.update { it + (newProgram to endTime) }
                 } else {
+                    if(_sendFlag.value){
+                        _sendFlag.value = false
+                    }
                     delay(1.seconds)
                 }
             }
@@ -560,7 +563,6 @@ class MessagesViewModel(
             }
         }
         _received.value = tmp.mapValues { it.value.toList() }.toMutableMap()
-        println(_received.value.toString())
         if(_received.value.isNotEmpty()) {
             addNewMessagesToList(_received.value.toMap())
         }
@@ -813,6 +815,5 @@ class MessagesViewModel(
 
     companion object {
         private const val IP_HOST = "broker.emqx.io"
-        private const val DELAY = 1
     }
 }
