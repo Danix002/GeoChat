@@ -9,8 +9,5 @@ class TestTimeProvider(private val scheduler: TestCoroutineScheduler) : TimeProv
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun currentTimeMillis(): Long = scheduler.currentTime
 
-    fun now(): LocalDateTime =
-        java.time.Instant.ofEpochMilli(currentTimeMillis())
-            .atZone(java.time.ZoneId.systemDefault())
-            .toLocalDateTime()
+    override fun now(): LocalDateTime = LocalDateTime.now()
 }

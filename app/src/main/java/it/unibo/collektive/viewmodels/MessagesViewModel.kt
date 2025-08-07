@@ -146,7 +146,7 @@ class MessagesViewModel(
     private val _sourceSince = MutableStateFlow<Long?>(null)
     val sourceSince: StateFlow<Long?> get() = _sourceSince
 
-    fun markAsSource(now: Long = System.currentTimeMillis()) {
+    fun markAsSource(now: Long = timeProvider.currentTimeMillis()) {
         _sourceSince.value = now
     }
 
@@ -406,13 +406,13 @@ class MessagesViewModel(
             val listenProgram = createProgram(
                 nearbyDevicesViewModel,
                 userName,
-                EnqueueMessage("", LocalDateTime.now(), MAX_VALUE, 0)
+                EnqueueMessage("", timeProvider.now(), MAX_VALUE, 0)
             )
             _programs.value = listOf(listenProgram to Long.MAX_VALUE)
             generateHeartbeatFlow()
                 .onEach {
                     clear()
-                    val now = System.currentTimeMillis()
+                    val now = timeProvider.currentTimeMillis()
                     _programs.value = _programs.value.filter { (_, endTime) -> now < endTime }
                     _programs.value.forEach { (program, _) -> program.cycle() }
                 }
@@ -460,7 +460,7 @@ class MessagesViewModel(
                         nearbyDevicesViewModel.userName.value,
                         enqueueMessage
                     )
-                    val endTime = System.currentTimeMillis() + (enqueueMessage.spreadingTime * 1000L)
+                    val endTime = timeProvider.currentTimeMillis() + ((enqueueMessage.spreadingTime + DELAY)* 1000L)
                     _programs.update { it + (newProgram to endTime) }
                 } else {
                     delay(1.seconds)
@@ -560,6 +560,7 @@ class MessagesViewModel(
             }
         }
         _received.value = tmp.mapValues { it.value.toList() }.toMutableMap()
+        println(_received.value.toString())
         if(_received.value.isNotEmpty()) {
             addNewMessagesToList(_received.value.toMap())
         }
@@ -812,5 +813,6 @@ class MessagesViewModel(
 
     companion object {
         private const val IP_HOST = "broker.emqx.io"
+        private const val DELAY = 1
     }
 }
