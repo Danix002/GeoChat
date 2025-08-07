@@ -13,7 +13,7 @@ import it.unibo.collektive.aggregate.api.share
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.model.Params
-import it.unibo.collektive.model.SystemTimeProvider
+import it.unibo.collektive.viewmodels.utils.SystemTimeProvider
 import it.unibo.collektive.network.mqtt.MqttMailbox
 import it.unibo.collektive.stdlib.fields.fold
 import it.unibo.collektive.stdlib.spreading.gradientCast
