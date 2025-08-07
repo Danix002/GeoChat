@@ -13,12 +13,14 @@ import it.unibo.collektive.aggregate.api.share
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.model.Params
+import it.unibo.collektive.model.SystemTimeProvider
 import it.unibo.collektive.network.mqtt.MqttMailbox
 import it.unibo.collektive.stdlib.fields.fold
 import it.unibo.collektive.stdlib.spreading.gradientCast
 import it.unibo.collektive.stdlib.spreading.multiGradientCast
 import it.unibo.collektive.stdlib.util.Point3D
 import it.unibo.collektive.stdlib.util.euclideanDistance3D
+import it.unibo.collektive.viewmodels.utils.TimeProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +57,8 @@ import kotlin.time.Duration.Companion.seconds
  */
 class MessagesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    providedScope: CoroutineScope? = null
+    providedScope: CoroutineScope? = null,
+    private val timeProvider: TimeProvider = SystemTimeProvider(),
 ) : ViewModel() {
     private val externalScope = providedScope ?: viewModelScope
 
