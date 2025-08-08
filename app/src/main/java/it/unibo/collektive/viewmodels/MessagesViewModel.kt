@@ -24,6 +24,8 @@ import it.unibo.collektive.viewmodels.utils.TimeProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
@@ -60,7 +62,11 @@ class MessagesViewModel(
     providedScope: CoroutineScope? = null,
     private val timeProvider: TimeProvider = SystemTimeProvider(),
 ) : ViewModel() {
-    private val externalScope = providedScope ?: viewModelScope
+    private val externalScope = if (providedScope == null) {
+        viewModelScope
+    } else {
+        CoroutineScope(SupervisorJob() + dispatcher)
+    }
 
     // Map of senders currently detected (deviceId -> (distance, username, message))
     private val _senders = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
@@ -812,6 +818,9 @@ class MessagesViewModel(
             }
         }
 
+    fun cancel() {
+        externalScope.cancel()
+    }
 
     companion object {
         private const val IP_HOST = "broker.emqx.io"

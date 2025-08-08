@@ -103,19 +103,17 @@ class SpreadingTimeTest {
         messagesViewModel.setSendFlag(true)
 
         advanceTimeBy(1.seconds)
-        advanceUntilIdle()
         assertFalse(messagesViewModel.pendingMessages.contains(message))
 
         advanceTimeBy(1.seconds)
-        advanceUntilIdle()
         assertEquals(2, emissions.last().size) // Listener + Sender
 
         advanceTimeBy((message.spreadingTime + 1) * 1_000L)
-        advanceUntilIdle()
         assertEquals(1, emissions.last().size) // Only listener
 
         messagesViewModel.setSendFlag(false)
         messagesViewModel.setOnlineStatus(false)
+        messagesViewModel.cancel()
         job.cancel()
     }
 
@@ -214,6 +212,7 @@ class SpreadingTimeTest {
 
         messagesViewModel.setSendFlag(false)
         messagesViewModel.setOnlineStatus(false)
+        messagesViewModel.cancel()
         job.cancel()
     }
 
