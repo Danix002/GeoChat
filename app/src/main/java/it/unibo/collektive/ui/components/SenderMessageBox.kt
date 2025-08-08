@@ -89,9 +89,6 @@ fun SenderMessageBox(
                     )
                     messageText = ""
                     messagingFlag = false
-                    if (messagesViewModel.pendingMessages.isEmpty()) {
-                        messagesViewModel.setSendFlag(flag = false)
-                    }
                 }
             } else {
                 errorPositionPopup = true

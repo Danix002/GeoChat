@@ -24,6 +24,8 @@ import it.unibo.collektive.viewmodels.utils.TimeProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
@@ -60,7 +62,11 @@ class MessagesViewModel(
     providedScope: CoroutineScope? = null,
     private val timeProvider: TimeProvider = SystemTimeProvider(),
 ) : ViewModel() {
-    private val externalScope = providedScope ?: viewModelScope
+    private val externalScope = if (providedScope == null) {
+        viewModelScope
+    } else {
+        CoroutineScope(SupervisorJob() + dispatcher)
+    }
 
     // Map of senders currently detected (deviceId -> (distance, username, message))
     private val _senders = MutableStateFlow<MutableMap<Uuid, Triple<Float, String, String>>>(mutableMapOf())
@@ -146,7 +152,7 @@ class MessagesViewModel(
     private val _sourceSince = MutableStateFlow<Long?>(null)
     val sourceSince: StateFlow<Long?> get() = _sourceSince
 
-    fun markAsSource(now: Long = System.currentTimeMillis()) {
+    fun markAsSource(now: Long = timeProvider.currentTimeMillis()) {
         _sourceSince.value = now
     }
 
@@ -406,13 +412,13 @@ class MessagesViewModel(
             val listenProgram = createProgram(
                 nearbyDevicesViewModel,
                 userName,
-                EnqueueMessage("", LocalDateTime.now(), MAX_VALUE, 0)
+                EnqueueMessage("", timeProvider.now(), MAX_VALUE, 0)
             )
             _programs.value = listOf(listenProgram to Long.MAX_VALUE)
             generateHeartbeatFlow()
                 .onEach {
                     clear()
-                    val now = System.currentTimeMillis()
+                    val now = timeProvider.currentTimeMillis()
                     _programs.value = _programs.value.filter { (_, endTime) -> now < endTime }
                     _programs.value.forEach { (program, _) -> program.cycle() }
                 }
@@ -449,7 +455,7 @@ class MessagesViewModel(
         nearbyDevicesViewModel: NearbyDevicesViewModel
     ){
         externalScope.launch(dispatcher) {
-            while (isActive) {
+            while (coroutineContext.isActive) {
                 val enqueueMessage = dequeueMessage()
                 if (enqueueMessage != null) {
                     if (enqueueMessage.spreadingTime.seconds < MINIMUM_TIME_TO_SEND) {
@@ -460,9 +466,12 @@ class MessagesViewModel(
                         nearbyDevicesViewModel.userName.value,
                         enqueueMessage
                     )
-                    val endTime = System.currentTimeMillis() + (enqueueMessage.spreadingTime * 1000L)
+                    val endTime = timeProvider.currentTimeMillis() + (enqueueMessage.spreadingTime * 1000L)
                     _programs.update { it + (newProgram to endTime) }
                 } else {
+                    if(_sendFlag.value){
+                        _sendFlag.value = false
+                    }
                     delay(1.seconds)
                 }
             }
@@ -809,6 +818,9 @@ class MessagesViewModel(
             }
         }
 
+    fun cancel() {
+        externalScope.cancel()
+    }
 
     companion object {
         private const val IP_HOST = "broker.emqx.io"
