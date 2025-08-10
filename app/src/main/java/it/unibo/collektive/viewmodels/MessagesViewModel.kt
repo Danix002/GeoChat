@@ -129,16 +129,6 @@ class MessagesViewModel(
     val devicesInChat: StateFlow<Int> = _counterDevices.asStateFlow()
 
     /**
-     * Minimum time required for a message to propagate through the network.
-     */
-    val MINIMUM_TIME_TO_SEND = 5.seconds
-
-    /**
-     * Delay before deleting messages from local cache.
-     */
-    val TIME_FOR_DELETE_MESSAGES = 2.seconds
-
-    /**
      * Public immutable flows exposed to UI.
      */
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
@@ -824,5 +814,15 @@ class MessagesViewModel(
 
     companion object {
         private const val IP_HOST = "broker.emqx.io"
+
+        /**
+         * Minimum time required for a message to propagate through the network.
+         */
+        val MINIMUM_TIME_TO_SEND = 5.seconds
+
+        /**
+         * Delay before deleting messages from local cache.
+         */
+        val TIME_FOR_DELETE_MESSAGES = 2.seconds
     }
 }
