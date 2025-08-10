@@ -8,6 +8,8 @@ import it.unibo.collektive.network.mqtt.MqttMailbox
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +29,11 @@ class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     providedScope: CoroutineScope? = null
 ) : ViewModel() {
-    private val externalScope = providedScope ?: viewModelScope
+    private val externalScope = if (providedScope == null) {
+        viewModelScope
+    } else {
+        CoroutineScope(SupervisorJob() + dispatcher)
+    }
     private val _dataFlow = MutableStateFlow<Set<Uuid>>(emptySet())
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
     private val _userName = MutableStateFlow("User")
@@ -119,6 +125,10 @@ class NearbyDevicesViewModel(
                 _dataFlow.value = newResult
             }.flowOn(dispatcher).launchIn(this)
         }
+    }
+
+    fun cancel() {
+        externalScope.cancel()
     }
 
     companion object {
