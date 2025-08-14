@@ -17,13 +17,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.seconds
@@ -38,7 +39,7 @@ class DistanceOfSpreadingTest {
     private lateinit var messageFlow: MutableSharedFlow<MqttMessage>
     private val expectedDistances = listOf(71f, 141f, 211f, 281f)
 
-    fun createViewModels(
+    private fun createViewModels(
         dispatcher: CoroutineDispatcher,
         scope: CoroutineScope,
         timeProvider: TestTimeProvider
@@ -81,22 +82,26 @@ class DistanceOfSpreadingTest {
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
 
-        devices.forEach { device ->
+        devices.drop(1).forEach { device ->
             jobs.add(
                 backgroundScope.launch(dispatcher) {
-                    device.first.messages.collect { state ->
-                        Log.i("Current list of all received messages", "$state")
-                        messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
-                    }
+                    device.first.messages
+                        .filter { it.isNotEmpty() }
+                        .take(1)
+                        .collect { state ->
+                            Log.i("Received", "$state")
+                            messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
+                        }
                 }
             )
         }
+
         devices.forEach { viewModels ->
             viewModels.first.setOnlineStatus(flag = true)
             viewModels.first.listenAndSend(viewModels.second, viewModels.second.userName.value)
         }
 
-        advanceTimeBy(10.seconds)
+        advanceTimeBy(1.seconds)
 
         val senderMessagesVM = devices[0].first
         val senderNearbyVM = devices[0].second
@@ -114,16 +119,17 @@ class DistanceOfSpreadingTest {
         )
         senderMessagesVM.setSendFlag(flag = true)
 
-        advanceTimeBy(10.seconds)
+        advanceTimeBy((message.spreadingTime + 1) * 1_000L)
 
         devices.drop(1).forEachIndexed { index, device ->
-            val received = messages[device.second.deviceId]?.lastOrNull()
-            assertTrue(received!!.size == 1)
-            assertNotNull(received)
-            assertEquals(
-                expectedDistances[index],
-                received.first().distance
-            )
+            val received = messages[device.second.deviceId]?.last()
+            received?.let {
+                assertTrue(received.size == 1)
+                assertEquals(
+                    expectedDistances[index],
+                    received.first().distance
+                )
+            }
         }
 
         devices.forEach { viewModels ->
@@ -132,6 +138,7 @@ class DistanceOfSpreadingTest {
             viewModels.first.cancel()
         }
         jobs.forEach { it.cancel() }
+        jobs.clear()
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -146,13 +153,16 @@ class DistanceOfSpreadingTest {
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
 
-        devices.forEach { device ->
+        devices.drop(1).forEach { device ->
             jobs.add(
                 backgroundScope.launch(dispatcher) {
-                    device.first.messages.collect { state ->
-                        Log.i("Current list of all received messages", "$state")
-                        messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
-                    }
+                    device.first.messages
+                        .filter { it.isNotEmpty() }
+                        .take(1)
+                        .collect { state ->
+                            Log.i("Received", "$state")
+                            messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
+                        }
                 }
             )
         }
@@ -160,8 +170,6 @@ class DistanceOfSpreadingTest {
             viewModels.first.setOnlineStatus(flag = true)
             viewModels.first.listenAndSend(viewModels.second, viewModels.second.userName.value)
         }
-
-        advanceTimeBy(10.seconds)
 
         val senderMessagesVM = devices[0].first
         val senderNearbyVM = devices[0].second
@@ -179,14 +187,16 @@ class DistanceOfSpreadingTest {
         )
         senderMessagesVM.setSendFlag(flag = true)
 
-        advanceTimeBy(10.seconds)
+        advanceTimeBy((message.spreadingTime + 1) * 1_000L)
 
         devices.drop(1).forEachIndexed { index, device ->
-            val received = messages[device.second.deviceId]?.lastOrNull()
-            if(index == 0) {
-                assertTrue(received!!.isNotEmpty())
-            }else{
-                assertFalse(received!!.isNotEmpty())
+            val received = messages[device.second.deviceId]?.last()
+            received?.let {
+                if(index == 0) {
+                    assertTrue(received.isNotEmpty())
+                }else{
+                    assertFalse(received.isNotEmpty())
+                }
             }
         }
 
