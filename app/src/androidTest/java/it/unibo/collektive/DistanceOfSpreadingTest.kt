@@ -36,7 +36,6 @@ class DistanceOfSpreadingTest {
     private val baseLon = 7.0
     private val offsets = listOf(0.0, 100.0, 200.0, 300.0, 400.0)
     private lateinit var devices: List<Pair<MessagesViewModel, NearbyDevicesViewModel>>
-    private lateinit var messageFlow: MutableSharedFlow<MqttMessage>
     private val expectedDistances = listOf(71f, 141f, 211f, 281f)
 
     private fun createViewModels(
@@ -44,7 +43,6 @@ class DistanceOfSpreadingTest {
         scope: CoroutineScope,
         timeProvider: TestTimeProvider
     ): List<Pair<MessagesViewModel, NearbyDevicesViewModel>> {
-        messageFlow = MutableSharedFlow(extraBufferCapacity = 100)
         return List(deviceCount) { i ->
             val mockLocation = generateLocationAtDistance(baseLat, baseLon, offsets[i])
             val nearbyVM = spyk(
@@ -66,7 +64,7 @@ class DistanceOfSpreadingTest {
             )
             messagesVM.setLocation(mockLocation)
 
-            messagesVM to  nearbyVM
+            messagesVM to nearbyVM
         }
     }
 
@@ -121,6 +119,8 @@ class DistanceOfSpreadingTest {
 
         advanceTimeBy((message.spreadingTime + 1) * 1_000L)
 
+        senderMessagesVM.setSendFlag(flag = false)
+
         devices.drop(1).forEachIndexed { index, device ->
             val received = messages[device.second.deviceId]?.last()
             received?.let {
@@ -133,7 +133,6 @@ class DistanceOfSpreadingTest {
         }
 
         devices.forEach { viewModels ->
-            viewModels.first.setSendFlag(false)
             viewModels.first.setOnlineStatus(false)
             viewModels.first.cancel()
         }
@@ -189,6 +188,8 @@ class DistanceOfSpreadingTest {
 
         advanceTimeBy((message.spreadingTime + 1) * 1_000L)
 
+        senderMessagesVM.setSendFlag(flag = false)
+
         devices.drop(1).forEachIndexed { index, device ->
             val received = messages[device.second.deviceId]?.last()
             received?.let {
@@ -201,7 +202,6 @@ class DistanceOfSpreadingTest {
         }
 
         devices.forEach { viewModels ->
-            viewModels.first.setSendFlag(false)
             viewModels.first.setOnlineStatus(false)
             viewModels.first.cancel()
         }
@@ -226,7 +226,7 @@ class DistanceOfSpreadingTest {
         return location
     }
 
-    fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
+    private fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
         val a = 6378137.0
         val e2 = 6.69437999014e-3
         val radLat = Math.toRadians(lat)
@@ -238,7 +238,7 @@ class DistanceOfSpreadingTest {
         return Point3D(Triple(x, y, z))
     }
 
-    fun ecefToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
+    private fun ecefToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
         val a = 6378137.0
         val e2 = 6.69437999014e-3
         val ePrime2 = e2 / (1 - e2)
