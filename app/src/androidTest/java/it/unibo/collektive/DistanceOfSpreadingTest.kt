@@ -44,7 +44,7 @@ class DistanceOfSpreadingTest {
         timeProvider: TestTimeProvider
     ): List<Pair<MessagesViewModel, NearbyDevicesViewModel>> {
         return List(deviceCount) { i ->
-            val mockLocation = generateLocationAtDistance(baseLat, baseLon, offsets[i])
+            val mockLocation = generateLocationAtDistance(baseLat, baseLon, offsets[i], timeProvider)
             val nearbyVM = spyk(
                 NearbyDevicesViewModel(
                     dispatcher = dispatcher,
@@ -212,6 +212,7 @@ class DistanceOfSpreadingTest {
         baseLat: Double,
         baseLon: Double,
         distanceMeters: Double,
+        timeProvider: TestTimeProvider,
         provider: String = "mock"
     ): Location {
         val location = Location(provider)
@@ -222,7 +223,7 @@ class DistanceOfSpreadingTest {
         location.longitude = newLon
         location.altitude = newAlt
         location.accuracy = 1f
-        location.time = System.currentTimeMillis()
+        location.time = timeProvider.currentTimeMillis()
         return location
     }
 
