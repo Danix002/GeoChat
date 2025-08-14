@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -115,15 +116,29 @@ class NearbyDevicesViewModel(
         externalScope.launch(dispatcher) {
             val program = collektiveProgram()
             _connectionFlow.value = ConnectionState.CONNECTED
-            flow {
-                while (_online.value) {
-                    emit(Unit)
-                    delay(2.seconds)
+            generateHeartbeatFlow()
+                .onEach {
+                    val newResult = program.cycle()
+                    _dataFlow.value = newResult
                 }
-            }.onEach {
-                val newResult = program.cycle()
-                _dataFlow.value = newResult
-            }.flowOn(dispatcher).launchIn(this)
+                .flowOn(dispatcher)
+                .launchIn(this)
+        }
+    }
+
+    /**
+     * Creates a flow that emits a signal every second while the system is online.
+     *
+     * This flow is typically used to drive periodic actions (e.g., program cycles)
+     * by emitting a [Unit] value once per second. The emission continues as long as
+     * the `_online` flag is `true`. Once `_online` becomes `false`, the flow completes.
+     *
+     * @return A cold [Flow] emitting [Unit] every second while `_online.value` is `true`.
+     */
+    private fun generateHeartbeatFlow(): Flow<Unit> = flow {
+        while (_online.value) {
+            emit(Unit)
+            delay(2.seconds)
         }
     }
 
