@@ -4,7 +4,6 @@ import android.location.Location
 import android.util.Log
 import io.mockk.every
 import io.mockk.spyk
-import it.nicolasfarabegoli.mktt.MqttMessage
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.stdlib.util.Point3D
@@ -15,7 +14,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
