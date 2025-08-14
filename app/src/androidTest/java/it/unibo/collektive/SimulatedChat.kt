@@ -178,8 +178,6 @@ class SimulatedChat {
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
 
-        val startTime = timeProvider.currentTimeMillis()
-
         devices.forEach{ (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
                 try {
@@ -197,7 +195,7 @@ class SimulatedChat {
             }
             jobs += backgroundScope.launch(dispatcher) {
                 var currentOffset = 0.0
-                while (timeProvider.currentTimeMillis() - startTime < 60_000) {
+                repeat(12){
                     val newLocation = generateLocationAtDistance(baseLat, baseLon, currentOffset, timeProvider)
                     messagesVM.setLocation(newLocation)
                     currentOffset += 10.0
@@ -206,19 +204,16 @@ class SimulatedChat {
             }
             jobs += backgroundScope.launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
-                var lastAttempt = 0L
                 var sentCounter = 0
                 repeat(60){
                     val now = timeProvider.currentTimeMillis()
-                    val inCooldown = now - lastAttempt < 5_000
                     val wasSender = messagesVM.getSendFlag()
 
-                    val shouldBecomeSource = !inCooldown && isSource()
+                    val shouldBecomeSource = isSource()
 
                     when {
                         shouldBecomeSource -> {
                             sentCounter++
-                            lastAttempt = now
                             messagesVM.markAsSource(now)
                             val msg = "Hello! I'm device $localId attempt $sentCounter"
                             val dist = Random.nextInt(5000, 10000).toFloat()
@@ -234,8 +229,7 @@ class SimulatedChat {
                             // stillSource: do nothing
                         }
                         else -> {
-                            if (!inCooldown) messagesVM.clearSourceStatus()
-                            messagesVM.setSendFlag(false)
+                            messagesVM.clearSourceStatus()
                         }
                     }
                     advanceTimeBy(1.seconds)
