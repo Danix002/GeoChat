@@ -35,6 +35,7 @@ import kotlin.uuid.Uuid
 
 class SimulatedChat {
     private val deviceCount = 4
+    private val durationOfSimulatedChat = 1 // Minutes
     private val baseLat = Random.nextDouble(-90.0, 90.0)
     private val baseLon = Random.nextDouble(-180.0, 180.0)
     private lateinit var devices: List<Pair<MessagesViewModel, NearbyDevicesViewModel>>
@@ -169,6 +170,7 @@ class SimulatedChat {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `dynamic movement and message propagation`() = runTest {
+        val durationInSecond = durationOfSimulatedChat * 60
         val dispatcher = StandardTestDispatcher(testScheduler)
         val testScope = this
         val timeProvider = TestTimeProvider(testScheduler)
@@ -181,7 +183,7 @@ class SimulatedChat {
         devices.forEach{ (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
                 try {
-                    withTimeout(1.minutes) {
+                    withTimeout(durationInSecond.seconds) {
                         messagesVM.messages
                             .filter { it.isNotEmpty() }
                             .collect { state ->
@@ -195,7 +197,8 @@ class SimulatedChat {
             }
             jobs += backgroundScope.launch(dispatcher) {
                 var currentOffset = 0.0
-                repeat(12){
+                val durationByDelay = durationInSecond / 5
+                repeat(durationByDelay){
                     val newLocation = generateLocationAtDistance(baseLat, baseLon, currentOffset, timeProvider)
                     messagesVM.setLocation(newLocation)
                     currentOffset += 10.0
@@ -205,7 +208,7 @@ class SimulatedChat {
             jobs += backgroundScope.launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
                 var sentCounter = 0
-                repeat(60){
+                repeat(durationInSecond){
                     val now = timeProvider.currentTimeMillis()
                     val wasSender = messagesVM.getSendFlag()
 
@@ -239,7 +242,7 @@ class SimulatedChat {
             messagesVM.listenAndSend(nearbyVM, nearbyVM.userName.value)
         }
 
-        advanceTimeBy(1.minutes)
+        advanceTimeBy(durationOfSimulatedChat.minutes)
 
         devices.forEachIndexed { index, device ->
             val received = messages[device.second.deviceId]?.last()
