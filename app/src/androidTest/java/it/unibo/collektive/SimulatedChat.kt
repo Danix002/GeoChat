@@ -15,21 +15,18 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertNotNull
-import kotlin.collections.component1
-import kotlin.collections.isNotEmpty
 import kotlin.math.cos
 import kotlin.random.Random
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -93,24 +90,20 @@ class SimulatedChat {
                             Log.i("Connection", "$state")
                             connectionStates.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
                             latch.value += 1
-                    }
+                        }
                 }
             )
         }
 
-        devices.forEach { viewModels ->
-            viewModels.second.startCollektiveProgram()
-        }
+        devices.forEach { it.second.startCollektiveProgram() }
 
-        latch.filter { it == deviceCount }.take(1).collect()
+        latch.filter { it == deviceCount }.first()
 
         devices.forEach {
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
-
         jobs.forEach { it.cancel() }
-        jobs.clear()
 
         devices.forEach { device ->
             val latest = connectionStates[device.second.deviceId]?.last()
@@ -146,19 +139,15 @@ class SimulatedChat {
             )
         }
 
-        devices.forEach { viewModels ->
-            viewModels.second.startCollektiveProgram()
-        }
+        devices.forEach { it.second.startCollektiveProgram() }
 
-        latch.filter { it == deviceCount }.take(1).collect()
+        latch.filter { it == deviceCount }.first()
 
         devices.forEach {
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
-
         jobs.forEach { it.cancel() }
-        jobs.clear()
 
         neighborhoods.forEach { (id, neighborList) ->
             val latest = neighborList.last()
@@ -170,7 +159,7 @@ class SimulatedChat {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `dynamic movement and message propagation`() = runTest {
-        val durationInSecond = durationOfSimulatedChat * 60
+        val durationInSeconds = durationOfSimulatedChat * 60
         val dispatcher = StandardTestDispatcher(testScheduler)
         val testScope = this
         val timeProvider = TestTimeProvider(testScheduler)
@@ -180,35 +169,34 @@ class SimulatedChat {
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
 
-        devices.forEach{ (messagesVM, nearbyVM) ->
+        devices.forEach { (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
-                try {
-                    withTimeout(durationInSecond.seconds) {
-                        messagesVM.messages
-                            .filter { it.isNotEmpty() }
-                            .collect { state ->
-                                Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
-                                messages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
-                            }
+                messagesVM.messages
+                    .filter { it.isNotEmpty() }
+                    .take(durationInSeconds)
+                    .collect { state ->
+                        Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
+                        messages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
                     }
-                } catch (e: TimeoutCancellationException) {
-                    Log.i("Device ${nearbyVM.deviceId}", "Timeout reached, stopping collection")
-                }
             }
-            jobs += backgroundScope.launch(dispatcher) {
+
+            // simulated movement
+            launch(dispatcher) {
                 var currentOffset = 0.0
-                val durationByDelay = durationInSecond / 5
-                repeat(durationByDelay){
+                val steps = durationInSeconds / 5
+                repeat(steps) {
                     val newLocation = generateLocationAtDistance(baseLat, baseLon, currentOffset, timeProvider)
                     messagesVM.setLocation(newLocation)
                     currentOffset += 10.0
-                    advanceTimeBy(5.seconds)
+                    delay(5.seconds)
                 }
             }
-            jobs += backgroundScope.launch(dispatcher) {
+
+            // sent messages
+            launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
                 var sentCounter = 0
-                repeat(durationInSecond){
+                repeat(durationInSeconds) {
                     val now = timeProvider.currentTimeMillis()
                     val wasSender = messagesVM.getSendFlag()
 
@@ -229,33 +217,32 @@ class SimulatedChat {
                             messagesVM.setSendFlag(true)
                         }
                         wasSender && messagesVM.sourceSince.value?.let { now - it < 2_000 } == true -> {
-                            // stillSource: do nothing
+                            // is source
                         }
                         else -> {
                             messagesVM.clearSourceStatus()
                         }
                     }
-                    advanceTimeBy(1.seconds)
+                    delay(1.seconds)
                 }
             }
+
             messagesVM.setOnlineStatus(true)
             messagesVM.listenAndSend(nearbyVM, nearbyVM.userName.value)
         }
 
-        advanceTimeBy(durationOfSimulatedChat.minutes)
+        advanceTimeBy(durationInSeconds.seconds)
 
-        devices.forEachIndexed { index, device ->
+        devices.forEach { device ->
             val received = messages[device.second.deviceId]?.last()
             assertNotNull(received)
         }
 
-        devices.forEach { viewModels ->
-            viewModels.first.setOnlineStatus(false)
-            viewModels.first.cancel()
+        devices.forEach {
+            it.first.setOnlineStatus(false)
+            it.first.cancel()
         }
-
         jobs.forEach { it.cancel() }
-        jobs.clear()
     }
 
     fun isSource() = Random.nextFloat() < 0.25f
