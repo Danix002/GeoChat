@@ -99,16 +99,16 @@ class SimulatedChat {
 
         latch.filter { it == deviceCount }.first()
 
+        devices.forEach { device ->
+            val latest = connectionStates[device.second.deviceId]?.last()
+            assertNotNull(latest)
+        }
+
         devices.forEach {
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
         jobs.forEach { it.cancel() }
-
-        devices.forEach { device ->
-            val latest = connectionStates[device.second.deviceId]?.last()
-            assertNotNull(latest)
-        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -143,17 +143,17 @@ class SimulatedChat {
 
         latch.filter { it == deviceCount }.first()
 
-        devices.forEach {
-            it.second.setOnlineStatus(false)
-            it.second.cancel()
-        }
-        jobs.forEach { it.cancel() }
-
         neighborhoods.forEach { (id, neighborList) ->
             val latest = neighborList.last()
             assertNotNull(latest)
             Log.i("Device $id", "sees ${latest.size} neighbors")
         }
+
+        devices.forEach {
+            it.second.setOnlineStatus(false)
+            it.second.cancel()
+        }
+        jobs.forEach { it.cancel() }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -192,7 +192,7 @@ class SimulatedChat {
                 }
             }
 
-            // sent messages
+            // send messages
             launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
                 var sentCounter = 0
