@@ -117,8 +117,6 @@ class DistanceOfSpreadingTest {
 
         advanceTimeBy((message.spreadingTime + 1) * 1_000L)
 
-        senderMessagesVM.setSendFlag(flag = false)
-
         devices.drop(1).forEachIndexed { index, device ->
             val received = messages[device.second.deviceId]?.last()
             received?.let {
@@ -185,8 +183,6 @@ class DistanceOfSpreadingTest {
         senderMessagesVM.setSendFlag(flag = true)
 
         advanceTimeBy((message.spreadingTime + 1) * 1_000L)
-
-        senderMessagesVM.setSendFlag(flag = false)
 
         devices.drop(1).forEachIndexed { index, device ->
             val received = messages[device.second.deviceId]?.last()

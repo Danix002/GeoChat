@@ -109,7 +109,6 @@ class SpreadingTimeTest {
         advanceTimeBy((message.spreadingTime + 1) * 1_000L)
         assertEquals(1, emissions.last().size) // Only listener
 
-        messagesViewModel.setSendFlag(false)
         messagesViewModel.setOnlineStatus(false)
         messagesViewModel.cancel()
         job.cancel()
@@ -208,7 +207,6 @@ class SpreadingTimeTest {
         assertEquals(1, emissions.last().size) // Only listener
         assertEquals("", currentSpread[0])
 
-        messagesViewModel.setSendFlag(false)
         messagesViewModel.setOnlineStatus(false)
         messagesViewModel.cancel()
         job.cancel()

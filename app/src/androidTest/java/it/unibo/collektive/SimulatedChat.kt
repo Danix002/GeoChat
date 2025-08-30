@@ -19,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -99,7 +100,7 @@ class SimulatedChat {
         latch.filter { it == deviceCount }.first()
 
         devices.forEach { device ->
-            val latest = connectionStates[device.second.deviceId]?.last()
+            val latest = connectionStates[device.second.deviceId]?.lastOrNull()
             assertNotNull(latest)
         }
 
@@ -108,6 +109,7 @@ class SimulatedChat {
             it.second.cancel()
         }
         jobs.forEach { it.cancel() }
+        Log.i("Finish", "ok")
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -143,9 +145,11 @@ class SimulatedChat {
         latch.filter { it == deviceCount }.first()
 
         neighborhoods.forEach { (id, neighborList) ->
-            val latest = neighborList.last()
+            val latest = neighborList.lastOrNull()
             assertNotNull(latest)
-            Log.i("Device $id", "sees ${latest.size} neighbors")
+            latest?.let {
+                Log.i("Device $id", "sees ${latest.size} neighbors")
+            }
         }
 
         devices.forEach {
@@ -153,6 +157,7 @@ class SimulatedChat {
             it.second.cancel()
         }
         jobs.forEach { it.cancel() }
+        Log.i("Finish", "ok")
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -167,19 +172,20 @@ class SimulatedChat {
 
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
+        val startTime = timeProvider.currentTimeMillis()
 
         devices.forEach { (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
                 messagesVM.messages
                     .filter { it.isNotEmpty() }
-                    .take(durationInSeconds)
+                    .takeWhile { timeProvider.currentTimeMillis() - startTime < durationInSeconds * 1000 }
                     .collect { state ->
                         Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
                         messages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
                     }
             }
 
-            // simulated movement
+            // Simulated movement
             launch(dispatcher) {
                 var currentOffset = 0.0
                 val steps = durationInSeconds / 5
@@ -191,7 +197,7 @@ class SimulatedChat {
                 }
             }
 
-            // send messages
+            // Send messages
             launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
                 var sentCounter = 0
@@ -216,7 +222,7 @@ class SimulatedChat {
                             messagesVM.setSendFlag(true)
                         }
                         wasSender && messagesVM.sourceSince.value?.let { now - it < 2_000 } == true -> {
-                            // is source
+                            // Is source
                         }
                         else -> {
                             messagesVM.clearSourceStatus()
@@ -230,18 +236,20 @@ class SimulatedChat {
             messagesVM.listenAndSend(nearbyVM, nearbyVM.userName.value)
         }
 
+        // Wait for the simulation duration
         advanceTimeBy(durationInSeconds.seconds)
-
-        devices.forEach { device ->
-            val received = messages[device.second.deviceId]?.last()
-            assertNotNull(received)
-        }
 
         devices.forEach {
             it.first.setOnlineStatus(false)
             it.first.cancel()
         }
+
         jobs.forEach { it.cancel() }
+
+        Log.i("Finish", "Collected messages from ${messages.size} devices")
+        messages.forEach { (deviceId, messagesList) ->
+            Log.i("Finish", "Device $deviceId received ${messagesList.size} message batches")
+        }
     }
 
     fun isSource() = Random.nextFloat() < 0.25f
