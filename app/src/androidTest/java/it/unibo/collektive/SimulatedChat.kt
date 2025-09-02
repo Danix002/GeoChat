@@ -176,7 +176,7 @@ class SimulatedChat {
         val receivedMessages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
         val startTime = timeProvider.currentTimeMillis()
-        val completionChannel = Channel<Unit>(deviceCount)
+        val completionChannel = Channel<Unit>(Channel.UNLIMITED)
 
         devices.forEach { (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
@@ -246,7 +246,7 @@ class SimulatedChat {
 
         // Wait for the simulation duration
         advanceTimeBy(durationInSeconds.seconds)
-        // Wait alarm for completionChannel
+        // Wait alarm
         advanceTimeBy(5.seconds)
 
         devices.forEach {
