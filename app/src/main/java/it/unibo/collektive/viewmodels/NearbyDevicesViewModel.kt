@@ -6,8 +6,10 @@ import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.api.neighboring
 import it.unibo.collektive.network.mqtt.MqttMailbox
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -30,10 +32,13 @@ class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     providedScope: CoroutineScope? = null
 ) : ViewModel() {
+    val debugHandler = CoroutineExceptionHandler { ctx, ex ->
+        println("Coroutine failed in $ctx: $ex")
+    }
     private val externalScope = if (providedScope == null) {
         viewModelScope
     } else {
-        CoroutineScope(SupervisorJob() + dispatcher)
+        CoroutineScope(SupervisorJob() + dispatcher + debugHandler)
     }
     private val _dataFlow = MutableStateFlow<Set<Uuid>>(emptySet())
     private val _connectionFlow = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -144,6 +149,22 @@ class NearbyDevicesViewModel(
 
     fun cancel() {
         externalScope.cancel()
+    }
+
+    fun dumpJobs(tag: String = "") {
+        val rootJob: Job? = externalScope.coroutineContext[Job]
+        if (rootJob == null) {
+            println("[$tag] No root job found in externalScope")
+            return
+        }
+        val children: Sequence<Job> = rootJob.children
+        if (!children.any()) {
+            println("[$tag] No children jobs")
+        } else {
+            children.forEach { child: Job ->
+                println("[$tag] Job=$child active=${child.isActive} cancelled=${child.isCancelled}")
+            }
+        }
     }
 
     companion object {
