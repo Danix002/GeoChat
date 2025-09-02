@@ -15,8 +15,9 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
+import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.takeWhile
@@ -78,7 +79,7 @@ class SimulatedChat {
 
         val connectionStates = mutableMapOf<Uuid, MutableList<NearbyDevicesViewModel.ConnectionState>>()
         val jobs = mutableListOf<Job>()
-        val latch = MutableStateFlow(0)
+        val completionChannel = Channel<Unit>(deviceCount)
 
         devices.forEach { device ->
             jobs.add(
@@ -89,7 +90,7 @@ class SimulatedChat {
                         .collect { state ->
                             Log.i("Connection", "$state")
                             connectionStates.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
-                            latch.value += 1
+                            completionChannel.send(Unit)
                         }
                 }
             )
@@ -97,18 +98,22 @@ class SimulatedChat {
 
         devices.forEach { it.second.startCollektiveProgram() }
 
-        latch.filter { it == deviceCount }.first()
-
         devices.forEach { device ->
             val latest = connectionStates[device.second.deviceId]?.lastOrNull()
-            assertNotNull(latest)
+            latest?.let {
+                assertEquals(NearbyDevicesViewModel.ConnectionState.CONNECTED, latest)
+            }
         }
 
         devices.forEach {
+            it.first.setOnlineStatus(false)
+            it.first.cancel()
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
         jobs.forEach { it.cancel() }
+        jobs.clear()
+
         Log.i("Finish", "ok")
     }
 
@@ -123,7 +128,7 @@ class SimulatedChat {
 
         val neighborhoods = mutableMapOf<Uuid, MutableList<Set<Uuid>>>()
         val jobs = mutableListOf<Job>()
-        val latch = MutableStateFlow(0)
+        val completionChannel = Channel<Unit>(deviceCount)
 
         devices.forEach { device ->
             jobs.add(
@@ -134,7 +139,7 @@ class SimulatedChat {
                         .collect { neighbors ->
                             Log.i("Neighborhood", "$neighbors")
                             neighborhoods.getOrPut(device.second.deviceId) { mutableListOf() }.add(neighbors)
-                            latch.value += 1
+                            completionChannel.send(Unit)
                         }
                 }
             )
@@ -142,21 +147,22 @@ class SimulatedChat {
 
         devices.forEach { it.second.startCollektiveProgram() }
 
-        latch.filter { it == deviceCount }.first()
-
         neighborhoods.forEach { (id, neighborList) ->
             val latest = neighborList.lastOrNull()
-            assertNotNull(latest)
             latest?.let {
-                Log.i("Device $id", "sees ${latest.size} neighbors")
+                assertEquals(deviceCount - 1, latest.size)
             }
         }
 
         devices.forEach {
+            it.first.setOnlineStatus(false)
+            it.first.cancel()
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
         jobs.forEach { it.cancel() }
+        jobs.clear()
+
         Log.i("Finish", "ok")
     }
 
@@ -173,15 +179,18 @@ class SimulatedChat {
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
         val startTime = timeProvider.currentTimeMillis()
+        val completionChannel = Channel<Unit>(deviceCount)
 
         devices.forEach { (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
                 messagesVM.messages
                     .filter { it.isNotEmpty() }
-                    .takeWhile { timeProvider.currentTimeMillis() - startTime < durationInSeconds * 1000 }
+                    .take(1)
+                    //.takeWhile { timeProvider.currentTimeMillis() - startTime <= durationInSeconds * 1000 }
                     .collect { state ->
                         Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
                         messages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
+                        completionChannel.send(Unit)
                     }
             }
 
@@ -242,9 +251,11 @@ class SimulatedChat {
         devices.forEach {
             it.first.setOnlineStatus(false)
             it.first.cancel()
+            it.second.setOnlineStatus(false)
+            it.second.cancel()
         }
-
         jobs.forEach { it.cancel() }
+        jobs.clear()
 
         Log.i("Finish", "Collected messages from ${messages.size} devices")
         messages.forEach { (deviceId, messagesList) ->
