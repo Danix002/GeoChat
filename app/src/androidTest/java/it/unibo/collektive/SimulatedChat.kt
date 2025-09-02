@@ -16,16 +16,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertNotNull
 import kotlin.math.cos
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
@@ -176,7 +173,7 @@ class SimulatedChat {
 
         devices = createViewModels(dispatcher, testScope, timeProvider)
 
-        val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
+        val receivedMessages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
         val startTime = timeProvider.currentTimeMillis()
         val completionChannel = Channel<Unit>(deviceCount)
@@ -185,29 +182,31 @@ class SimulatedChat {
             jobs += backgroundScope.launch(dispatcher) {
                 messagesVM.messages
                     .filter { it.isNotEmpty() }
-                    .take(1)
-                    //.takeWhile { timeProvider.currentTimeMillis() - startTime <= durationInSeconds * 1000 }
                     .collect { state ->
                         Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
-                        messages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
-                        completionChannel.send(Unit)
+                        Log.i("Elapsed Time", "${timeProvider.currentTimeMillis() - startTime}")
+                        receivedMessages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
+                        if(timeProvider.currentTimeMillis() - startTime >= durationInSeconds * 1000L){
+                            Log.i("Alarm", "${timeProvider.currentTimeMillis() - startTime}")
+                            completionChannel.send(Unit)
+                        }
                     }
             }
 
             // Simulated movement
-            launch(dispatcher) {
+            jobs += testScope.launch(dispatcher) {
                 var currentOffset = 0.0
                 val steps = durationInSeconds / 5
                 repeat(steps) {
                     val newLocation = generateLocationAtDistance(baseLat, baseLon, currentOffset, timeProvider)
                     messagesVM.setLocation(newLocation)
                     currentOffset += 10.0
-                    delay(5.seconds)
+                    advanceTimeBy(5.seconds)
                 }
             }
 
             // Send messages
-            launch(dispatcher) {
+            jobs += testScope.launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
                 var sentCounter = 0
                 repeat(durationInSeconds) {
@@ -237,7 +236,7 @@ class SimulatedChat {
                             messagesVM.clearSourceStatus()
                         }
                     }
-                    delay(1.seconds)
+                    advanceTimeBy(1.seconds)
                 }
             }
 
@@ -247,6 +246,8 @@ class SimulatedChat {
 
         // Wait for the simulation duration
         advanceTimeBy(durationInSeconds.seconds)
+        // Wait alarm for completionChannel
+        advanceTimeBy(5.seconds)
 
         devices.forEach {
             it.first.setOnlineStatus(false)
@@ -257,8 +258,8 @@ class SimulatedChat {
         jobs.forEach { it.cancel() }
         jobs.clear()
 
-        Log.i("Finish", "Collected messages from ${messages.size} devices")
-        messages.forEach { (deviceId, messagesList) ->
+        Log.i("Finish", "Collected messages from ${receivedMessages.size} devices")
+        receivedMessages.forEach { (deviceId, messagesList) ->
             Log.i("Finish", "Device $deviceId received ${messagesList.size} message batches")
         }
     }
