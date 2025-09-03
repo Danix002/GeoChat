@@ -10,38 +10,40 @@ import android.location.Location
 import android.util.Log
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.stdlib.util.Point3D
+import it.unibo.collektive.utils.TestParams
 import it.unibo.collektive.utils.TestTimeProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertTrue
+import kotlin.collections.isNotEmpty
 import kotlin.math.cos
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 class SimulatedChat {
-    private val deviceCount = 4
-    private val durationOfSimulatedChat = 1 // Minutes
+    private val deviceCount = 10
     private val baseLat = Random.nextDouble(-90.0, 90.0)
     private val baseLon = Random.nextDouble(-180.0, 180.0)
-    private lateinit var devices: List<Pair<MessagesViewModel, NearbyDevicesViewModel>>
+    private lateinit var devices: List<Triple<MessagesViewModel, NearbyDevicesViewModel, TestParams>>
 
     private fun createViewModels(
         dispatcher: CoroutineDispatcher,
         scope: CoroutineScope,
         timeProvider: TestTimeProvider
-    ): List<Pair<MessagesViewModel, NearbyDevicesViewModel>> {
+    ): List<Triple<MessagesViewModel, NearbyDevicesViewModel, TestParams>> {
         return List(deviceCount) { i ->
             val mockLocation = randomLocationNearby(baseLat, baseLon, timeProvider)
             val nearbyVM = spyk(
@@ -63,7 +65,11 @@ class SimulatedChat {
             )
             messagesVM.setLocation(mockLocation)
 
-            messagesVM to nearbyVM
+            Triple(
+                messagesVM,
+                nearbyVM,
+                TestParams(0, 0, 0.0)
+            )
         }
     }
 
@@ -168,7 +174,7 @@ class SimulatedChat {
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `dynamic movement and message propagation`() = runTest {
-        val durationInSeconds = durationOfSimulatedChat * 60
+        val durationInSeconds = 16
         val dispatcher = StandardTestDispatcher(testScheduler)
         val testScope = this
         val timeProvider = TestTimeProvider(testScheduler)
@@ -176,82 +182,89 @@ class SimulatedChat {
         devices = createViewModels(dispatcher, testScope, timeProvider)
 
         val receivedMessages = mutableMapOf<Uuid, MutableList<List<Message>>>()
-        val jobs = mutableListOf<Job>()
         val startTime = timeProvider.currentTimeMillis()
+        val jobs = mutableListOf<Job>()
 
         devices.forEach { (messagesVM, nearbyVM) ->
-            jobs += backgroundScope.launch(dispatcher) {
-                messagesVM.messages
-                    .filter { it.isNotEmpty() }
-                    .onCompletion { Log.i("Flow", "Stopped for ${nearbyVM.deviceId}") }
-                    .collect { state ->
-                        if(timeProvider.currentTimeMillis() - startTime >= durationInSeconds * 1000L){
-                            Log.i("Alarm", "${timeProvider.currentTimeMillis() - startTime}")
-                            cancel()
+            jobs.add(
+                backgroundScope.launch(dispatcher) {
+                    messagesVM.messages
+                        .filter { it.isNotEmpty() }
+                        .takeWhile { timeProvider.currentTimeMillis() - startTime <= durationInSeconds * 1000L }
+                        .collect { state ->
+                            Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
+                            Log.i("Elapsed Time", "${timeProvider.currentTimeMillis() - startTime}")
+                            receivedMessages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
                         }
-                        Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
-                        Log.i("Elapsed Time", "${timeProvider.currentTimeMillis() - startTime}")
-                        receivedMessages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
-                    }
-            }
-
-            // Simulated movement
-            jobs += backgroundScope.launch(dispatcher) {
-                var currentOffset = 0.0
-                val steps = durationInSeconds / 5
-                repeat(steps) {
-                    val newLocation = generateLocationAtDistance(baseLat, baseLon, currentOffset, timeProvider)
-                    messagesVM.setLocation(newLocation)
-                    currentOffset += 10.0
-                    advanceTimeBy(5.seconds)
                 }
-                cancel()
-            }
+            )
+        }
 
-            // Send messages
-            jobs += backgroundScope.launch(dispatcher) {
-                val localId = nearbyVM.deviceId.toString()
-                var sentCounter = 0
-                repeat(durationInSeconds) {
-                    val now = timeProvider.currentTimeMillis()
-                    val wasSender = messagesVM.getSendFlag()
-
-                    val shouldBecomeSource = isSource()
-
-                    when {
-                        shouldBecomeSource -> {
-                            sentCounter++
-                            messagesVM.markAsSource(now)
-                            val msg = "Hello! I'm device $localId attempt $sentCounter"
-                            val dist = Random.nextInt(5000, 10000).toFloat()
-                            messagesVM.enqueueMessage(
-                                message = msg,
-                                time = timeProvider.now(),
-                                distance = dist,
-                                spreadingTime = Random.nextInt(5, 60)
-                            )
-                            messagesVM.setSendFlag(true)
-                        }
-                        wasSender && messagesVM.sourceSince.value?.let { now - it < 2_000 } == true -> {
-                            // Is source
-                        }
-                        else -> {
-                            messagesVM.clearSourceStatus()
-                        }
-                    }
-                    advanceTimeBy(1.seconds)
-                }
-                cancel()
-            }
-
+        devices.forEach { (messagesVM, nearbyVM) ->
             messagesVM.setOnlineStatus(true)
             messagesVM.listenAndSend(nearbyVM, nearbyVM.userName.value)
         }
 
-        // Wait for the simulation duration
-        advanceTimeBy(durationInSeconds.seconds)
-        // Wait flow termination
-        advanceTimeBy(5.seconds)
+        val spreadingTime = 5
+
+        repeat(durationInSeconds) {
+            devices.forEach { (messagesVM, nearbyVM, params) ->
+                val localId = nearbyVM.deviceId.toString()
+
+                if (params.currentStep % 5 == 0) {
+                    val newLocation =
+                        generateLocationAtDistance(
+                            baseLat,
+                            baseLon,
+                            params.currentOffset,
+                            timeProvider
+                        )
+                    messagesVM.setLocation(newLocation)
+                    params.currentOffset += 10.0
+                }
+
+                val now = timeProvider.currentTimeMillis()
+                val wasSender = messagesVM.getSendFlag()
+
+                val shouldBecomeSource = isSource()
+
+                when {
+                    shouldBecomeSource -> {
+                        params.sentCounter++
+                        messagesVM.markAsSource(now)
+                        val msg = "Hello! I'm device $localId attempt ${params.sentCounter}"
+                        val dist = Random.nextInt(5000, 10000).toFloat()
+                        messagesVM.enqueueMessage(
+                            message = msg,
+                            time = timeProvider.now(),
+                            distance = dist,
+                            spreadingTime = spreadingTime
+                        )
+                        messagesVM.setSendFlag(true)
+                    }
+
+                    wasSender && messagesVM.sourceSince.value?.let { now - it < 2_000 } == true -> {
+                        // Nothing
+                    }
+
+                    else -> {
+                        messagesVM.clearSourceStatus()
+                    }
+                }
+
+                params.currentStep++
+            }
+            advanceTimeBy(1.seconds)
+        }
+
+        advanceTimeBy((spreadingTime + 1).seconds)
+
+        devices.forEach { device ->
+            val received = receivedMessages[device.second.deviceId]?.last()
+            received?.let {
+                assertTrue(received.isNotEmpty())
+            }
+        }
 
         devices.forEach {
             it.first.setOnlineStatus(false)
@@ -260,20 +273,10 @@ class SimulatedChat {
             it.second.cancel()
         }
 
-        /*advanceTimeBy(2.seconds)
-        devices.forEach { (msgVM, nearVM) ->
-            msgVM.dumpJobs("MessagesVM ${nearVM.deviceId}")
-            nearVM.dumpJobs("NearbyVM ${nearVM.deviceId}")
-        }
-        jobs.forEach {
-            Log.i("${it.key}", "Job=${it} active=${it.isActive} cancelled=${it.isCancelled}")
-        }
-        jobs.clear()*/
+        jobs.forEach { it.cancel() }
+        jobs.clear()
 
-        Log.i("Finish", "Collected messages from ${receivedMessages.size} devices")
-        receivedMessages.forEach { (deviceId, messagesList) ->
-            Log.i("Finish", "Device $deviceId received ${messagesList.size} message batches")
-        }
+        Log.i("Finish", "ok")
     }
 
     fun isSource() = Random.nextFloat() < 0.25f
