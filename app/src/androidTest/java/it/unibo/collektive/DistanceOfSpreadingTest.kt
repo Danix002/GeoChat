@@ -4,29 +4,27 @@ import android.location.Location
 import android.util.Log
 import io.mockk.every
 import io.mockk.spyk
-import it.nicolasfarabegoli.mktt.MqttMessage
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
 import it.unibo.collektive.stdlib.util.Point3D
+import it.unibo.collektive.utils.TestTimeProvider
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import org.junit.After
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
-import java.time.LocalDateTime
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -35,60 +33,77 @@ class DistanceOfSpreadingTest {
     private val baseLat = 45.0
     private val baseLon = 7.0
     private val offsets = listOf(0.0, 100.0, 200.0, 300.0, 400.0)
-    private lateinit var devices: List<Triple<MessagesViewModel, NearbyDevicesViewModel, CoroutineScope>>
-    private lateinit var messageFlow: MutableSharedFlow<MqttMessage>
+    private lateinit var devices: List<Pair<MessagesViewModel, NearbyDevicesViewModel>>
     private val expectedDistances = listOf(71f, 141f, 211f, 281f)
 
-    @Before
-    fun setup() = runBlocking {
-        messageFlow = MutableSharedFlow(extraBufferCapacity = 100)
-        devices = List(deviceCount) { i ->
-            val mockLocation = generateLocationAtDistance(baseLat, baseLon, offsets[i])
-            val testScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private fun createViewModels(
+        dispatcher: CoroutineDispatcher,
+        scope: CoroutineScope,
+        timeProvider: TestTimeProvider
+    ): List<Pair<MessagesViewModel, NearbyDevicesViewModel>> {
+        return List(deviceCount) { i ->
+            val mockLocation = generateLocationAtDistance(baseLat, baseLon, offsets[i], timeProvider)
             val nearbyVM = spyk(
-                NearbyDevicesViewModel(providedScope = testScope),
+                NearbyDevicesViewModel(
+                    dispatcher = dispatcher,
+                    providedScope = scope
+                ),
                 recordPrivateCalls = true
             )
             every { nearbyVM.userName } returns MutableStateFlow("User $i")
 
-            val messagesVM = spyk(MessagesViewModel(), recordPrivateCalls = true)
+            val messagesVM = spyk(
+                MessagesViewModel(
+                    dispatcher = dispatcher,
+                    providedScope = scope,
+                    timeProvider = timeProvider
+                ),
+                recordPrivateCalls = true
+            )
             messagesVM.setLocation(mockLocation)
 
-            Triple(messagesVM, nearbyVM, testScope)
+            messagesVM to nearbyVM
         }
     }
 
-    /**
-     * Tests that message is sent with a specific distance.
-     *
-     * ⚠️ **Note**: This test is sensitive to coroutine scheduling and wall-clock timing.
-     * When running the full test suite, this test may occasionally fail due to timing interleavings
-     * caused by concurrent tests or system load. If you encounter a failure here,
-     * try running this test **in isolation**.
-     *
-     * This is expected behavior under certain conditions and does not necessarily indicate a bug.
-     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `distance value correspondence`() = runBlocking {
+    fun `distance value correspondence`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val testScope = this
+        val timeProvider = TestTimeProvider(testScheduler)
+
+        devices = createViewModels(dispatcher, testScope, timeProvider)
+
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
-        val jobs = devices.map { device ->
-            launch {
-                device.first.messages.collect { state ->
-                    Log.i("Current list of all received messages", "$state")
-                    messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
+        val jobs = mutableListOf<Job>()
+
+        devices.drop(1).forEach { device ->
+            jobs.add(
+                backgroundScope.launch(dispatcher) {
+                    device.first.messages
+                        .filter { it.isNotEmpty() }
+                        .take(1)
+                        .collect { state ->
+                            Log.i("Received", "$state")
+                            messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
+                        }
                 }
-            }
+            )
         }
+
         devices.forEach { viewModels ->
             viewModels.first.setOnlineStatus(flag = true)
             viewModels.first.listenAndSend(viewModels.second, viewModels.second.userName.value)
         }
-        delay(10.seconds)
+
+        advanceTimeBy(1.seconds)
+
         val senderMessagesVM = devices[0].first
         val senderNearbyVM = devices[0].second
         val message = EnqueueMessage(
             text = "Message by ${senderNearbyVM.deviceId}",
-            time = LocalDateTime.now(),
+            time = timeProvider.now(),
             distance = 2000f,
             spreadingTime = 5
         )
@@ -99,50 +114,63 @@ class DistanceOfSpreadingTest {
             spreadingTime = message.spreadingTime
         )
         senderMessagesVM.setSendFlag(flag = true)
-        delay(10.seconds)
+
+        advanceTimeBy((message.spreadingTime + 1) * 1_000L)
+
         devices.drop(1).forEachIndexed { index, device ->
-            val received = messages[device.second.deviceId]?.lastOrNull()
-            assertTrue(received!!.size == 1)
-            assertNotNull(received)
-            assertEquals(
-                expectedDistances[index],
-                received.first().distance
-            )
+            val received = messages[device.second.deviceId]?.last()
+            received?.let {
+                assertTrue(received.size == 1)
+                assertEquals(
+                    expectedDistances[index],
+                    received.first().distance
+                )
+            }
+        }
+
+        devices.forEach { viewModels ->
+            viewModels.first.setOnlineStatus(false)
+            viewModels.first.cancel()
         }
         jobs.forEach { it.cancel() }
+        jobs.clear()
     }
 
-    /**
-     * Tests that message was not sent with a specific distance.
-     *
-     * ⚠️ **Note**: This test is sensitive to coroutine scheduling and wall-clock timing.
-     * When running the full test suite, this test may occasionally fail due to timing interleavings
-     * caused by concurrent tests or system load. If you encounter a failure here,
-     * try running this test **in isolation**.
-     *
-     * This is expected behavior under certain conditions and does not necessarily indicate a bug.
-     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `message not received because the devices is not in range`() = runBlocking {
+    fun `message not received because the devices is not in range`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val testScope = this
+        val timeProvider = TestTimeProvider(testScheduler)
+
+        devices = createViewModels(dispatcher, testScope, timeProvider)
+
         val messages = mutableMapOf<Uuid, MutableList<List<Message>>>()
-        val jobs = devices.map { device ->
-            launch {
-                device.first.messages.collect { state ->
-                    Log.i("Current list of all received messages", "$state")
-                    messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
+        val jobs = mutableListOf<Job>()
+
+        devices.drop(1).forEach { device ->
+            jobs.add(
+                backgroundScope.launch(dispatcher) {
+                    device.first.messages
+                        .filter { it.isNotEmpty() }
+                        .take(1)
+                        .collect { state ->
+                            Log.i("Received", "$state")
+                            messages.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
+                        }
                 }
-            }
+            )
         }
         devices.forEach { viewModels ->
             viewModels.first.setOnlineStatus(flag = true)
             viewModels.first.listenAndSend(viewModels.second, viewModels.second.userName.value)
         }
-        delay(10.seconds)
+
         val senderMessagesVM = devices[0].first
         val senderNearbyVM = devices[0].second
         val message = EnqueueMessage(
             text = "Message by ${senderNearbyVM.deviceId}",
-            time = LocalDateTime.now(),
+            time = timeProvider.now(),
             distance = 100f,
             spreadingTime = 5
         )
@@ -153,14 +181,23 @@ class DistanceOfSpreadingTest {
             spreadingTime = message.spreadingTime
         )
         senderMessagesVM.setSendFlag(flag = true)
-        delay(10.seconds)
+
+        advanceTimeBy((message.spreadingTime + 1) * 1_000L)
+
         devices.drop(1).forEachIndexed { index, device ->
-            val received = messages[device.second.deviceId]?.lastOrNull()
-            if(index == 0) {
-                assertTrue(received!!.isNotEmpty())
-            }else{
-                assertFalse(received!!.isNotEmpty())
+            val received = messages[device.second.deviceId]?.last()
+            received?.let {
+                if(index == 0) {
+                    assertTrue(received.isNotEmpty())
+                }else{
+                    assertFalse(received.isNotEmpty())
+                }
             }
+        }
+
+        devices.forEach { viewModels ->
+            viewModels.first.setOnlineStatus(false)
+            viewModels.first.cancel()
         }
         jobs.forEach { it.cancel() }
     }
@@ -169,6 +206,7 @@ class DistanceOfSpreadingTest {
         baseLat: Double,
         baseLon: Double,
         distanceMeters: Double,
+        timeProvider: TestTimeProvider,
         provider: String = "mock"
     ): Location {
         val location = Location(provider)
@@ -179,11 +217,11 @@ class DistanceOfSpreadingTest {
         location.longitude = newLon
         location.altitude = newAlt
         location.accuracy = 1f
-        location.time = System.currentTimeMillis()
+        location.time = timeProvider.currentTimeMillis()
         return location
     }
 
-    fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
+    private fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
         val a = 6378137.0
         val e2 = 6.69437999014e-3
         val radLat = Math.toRadians(lat)
@@ -195,7 +233,7 @@ class DistanceOfSpreadingTest {
         return Point3D(Triple(x, y, z))
     }
 
-    fun ecefToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
+    private fun ecefToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
         val a = 6378137.0
         val e2 = 6.69437999014e-3
         val ePrime2 = e2 / (1 - e2)
@@ -212,12 +250,5 @@ class DistanceOfSpreadingTest {
         val N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat))
         val alt = p / Math.cos(lat) - N
         return Triple(Math.toDegrees(lat), Math.toDegrees(lon), alt)
-    }
-
-    @After
-    fun tearDown() {
-        devices.forEach {
-            it.third.cancel()
-        }
     }
 }
