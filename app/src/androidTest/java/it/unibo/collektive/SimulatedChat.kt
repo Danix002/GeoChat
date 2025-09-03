@@ -15,9 +15,11 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -176,25 +178,25 @@ class SimulatedChat {
         val receivedMessages = mutableMapOf<Uuid, MutableList<List<Message>>>()
         val jobs = mutableListOf<Job>()
         val startTime = timeProvider.currentTimeMillis()
-        val completionChannel = Channel<Unit>(Channel.UNLIMITED)
 
         devices.forEach { (messagesVM, nearbyVM) ->
             jobs += backgroundScope.launch(dispatcher) {
                 messagesVM.messages
                     .filter { it.isNotEmpty() }
+                    .onCompletion { Log.i("Flow", "Stopped for ${nearbyVM.deviceId}") }
                     .collect { state ->
+                        if(timeProvider.currentTimeMillis() - startTime >= durationInSeconds * 1000L){
+                            Log.i("Alarm", "${timeProvider.currentTimeMillis() - startTime}")
+                            cancel()
+                        }
                         Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
                         Log.i("Elapsed Time", "${timeProvider.currentTimeMillis() - startTime}")
                         receivedMessages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
-                        if(timeProvider.currentTimeMillis() - startTime >= durationInSeconds * 1000L){
-                            Log.i("Alarm", "${timeProvider.currentTimeMillis() - startTime}")
-                            completionChannel.send(Unit)
-                        }
                     }
             }
 
             // Simulated movement
-            jobs += testScope.launch(dispatcher) {
+            jobs += backgroundScope.launch(dispatcher) {
                 var currentOffset = 0.0
                 val steps = durationInSeconds / 5
                 repeat(steps) {
@@ -203,10 +205,11 @@ class SimulatedChat {
                     currentOffset += 10.0
                     advanceTimeBy(5.seconds)
                 }
+                cancel()
             }
 
             // Send messages
-            jobs += testScope.launch(dispatcher) {
+            jobs += backgroundScope.launch(dispatcher) {
                 val localId = nearbyVM.deviceId.toString()
                 var sentCounter = 0
                 repeat(durationInSeconds) {
@@ -238,6 +241,7 @@ class SimulatedChat {
                     }
                     advanceTimeBy(1.seconds)
                 }
+                cancel()
             }
 
             messagesVM.setOnlineStatus(true)
@@ -246,7 +250,7 @@ class SimulatedChat {
 
         // Wait for the simulation duration
         advanceTimeBy(durationInSeconds.seconds)
-        // Wait alarm
+        // Wait flow termination
         advanceTimeBy(5.seconds)
 
         devices.forEach {
@@ -255,8 +259,16 @@ class SimulatedChat {
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
-        jobs.forEach { it.cancel() }
-        jobs.clear()
+
+        /*advanceTimeBy(2.seconds)
+        devices.forEach { (msgVM, nearVM) ->
+            msgVM.dumpJobs("MessagesVM ${nearVM.deviceId}")
+            nearVM.dumpJobs("NearbyVM ${nearVM.deviceId}")
+        }
+        jobs.forEach {
+            Log.i("${it.key}", "Job=${it} active=${it.isActive} cancelled=${it.isCancelled}")
+        }
+        jobs.clear()*/
 
         Log.i("Finish", "Collected messages from ${receivedMessages.size} devices")
         receivedMessages.forEach { (deviceId, messagesList) ->
