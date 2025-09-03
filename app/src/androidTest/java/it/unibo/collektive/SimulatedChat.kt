@@ -29,7 +29,6 @@ import org.junit.Assert.assertTrue
 import kotlin.collections.isNotEmpty
 import kotlin.math.cos
 import kotlin.random.Random
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
