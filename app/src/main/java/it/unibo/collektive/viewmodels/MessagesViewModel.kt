@@ -237,7 +237,7 @@ class MessagesViewModel(
      */
     init {
         externalScope.launch(dispatcher) {
-            while (true) {
+            while (coroutineContext.isActive) {
                 _messages.value.clear()
                 delay(5.minutes)
             }

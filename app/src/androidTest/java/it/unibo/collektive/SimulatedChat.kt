@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Test
 import android.location.Location
 import android.util.Log
-import it.unibo.collektive.model.Message
 import it.unibo.collektive.stdlib.util.Point3D
 import it.unibo.collektive.utils.TestParams
 import it.unibo.collektive.utils.TestTimeProvider
@@ -20,7 +19,6 @@ import kotlinx.coroutines.channels.Channel
 import org.junit.Assert.assertEquals
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -180,25 +178,6 @@ class SimulatedChat {
 
         devices = createViewModels(dispatcher, testScope, timeProvider)
 
-        val receivedMessages = mutableMapOf<Uuid, MutableList<List<Message>>>()
-        val startTime = timeProvider.currentTimeMillis()
-        val jobs = mutableListOf<Job>()
-
-        devices.forEach { (messagesVM, nearbyVM) ->
-            jobs.add(
-                backgroundScope.launch(dispatcher) {
-                    messagesVM.messages
-                        .filter { it.isNotEmpty() }
-                        .takeWhile { timeProvider.currentTimeMillis() - startTime <= durationInSeconds * 1000L }
-                        .collect { state ->
-                            Log.i("Device ${nearbyVM.deviceId}", "Received: $state")
-                            Log.i("Elapsed Time", "${timeProvider.currentTimeMillis() - startTime}")
-                            receivedMessages.getOrPut(nearbyVM.deviceId) { mutableListOf() }.add(state)
-                        }
-                }
-            )
-        }
-
         devices.forEach { (messagesVM, nearbyVM) ->
             messagesVM.setOnlineStatus(true)
             messagesVM.listenAndSend(nearbyVM, nearbyVM.userName.value)
@@ -224,7 +203,6 @@ class SimulatedChat {
 
                 val now = timeProvider.currentTimeMillis()
                 val wasSender = messagesVM.getSendFlag()
-
                 val shouldBecomeSource = isSource()
 
                 when {
@@ -259,10 +237,9 @@ class SimulatedChat {
         advanceTimeBy((spreadingTime + 1).seconds)
 
         devices.forEach { device ->
-            val received = receivedMessages[device.second.deviceId]?.last()
-            received?.let {
-                assertTrue(received.isNotEmpty())
-            }
+            val received = device.first.messages.value
+            assertTrue(received.isNotEmpty())
+            Log.i("${device.second.deviceId}", "Received size: ${received.size}")
         }
 
         devices.forEach {
@@ -271,9 +248,6 @@ class SimulatedChat {
             it.second.setOnlineStatus(false)
             it.second.cancel()
         }
-
-        jobs.forEach { it.cancel() }
-        jobs.clear()
 
         Log.i("Finish", "ok")
     }
