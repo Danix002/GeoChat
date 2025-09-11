@@ -237,7 +237,7 @@ class SimulatedChat {
         advanceTimeBy((spreadingTime + 1).seconds)
 
         devices.forEach { device ->
-            val received = device.first.messages.value
+            val received = device.first.getCurrentListOfMessages()
             assertTrue(received.isNotEmpty())
             Log.i("${device.second.deviceId}", "Received size: ${received.size}")
         }

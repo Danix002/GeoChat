@@ -852,6 +852,20 @@ class MessagesViewModel(
     }
 
     /**
+     * Retrieves the current list of messages stored in the ViewModel.
+     *
+     * This function provides a snapshot of all messages that have been received or
+     * sent locally up to the moment of invocation. The returned list reflects the
+     * current state of the underlying [messages] flow.
+     *
+     * @return a [List] of [Message] objects representing all messages currently
+     *         stored in the ViewModel.
+     */
+    fun getCurrentListOfMessages() : List<Message> {
+        return messages.value
+    }
+
+    /**
      * Logs the status of child jobs within [externalScope].
      *
      * This function retrieves the root [Job] from the [CoroutineContext] of [externalScope]
