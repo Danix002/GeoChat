@@ -148,10 +148,26 @@ class MessagesViewModel(
     private val _sourceSince = MutableStateFlow<Long?>(null)
     val sourceSince: StateFlow<Long?> get() = _sourceSince
 
+    /**
+     * Marks the entity as a message source by recording the current timestamp.
+     *
+     * This function sets the backing property `_sourceSince` to the specified time,
+     * or to the current time obtained from [timeProvider] if no argument is provided.
+     * Primarily intended for testing purposes to simulate source activation.
+     *
+     * @param now the timestamp to set as the source start time, defaulting to the current time.
+     */
     fun markAsSource(now: Long = timeProvider.currentTimeMillis()) {
         _sourceSince.value = now
     }
 
+    /**
+     * Clears the source status of the entity.
+     *
+     * This function resets the backing property `_sourceSince` to `null`, effectively
+     * marking the entity as no longer being a message source.
+     * Primarily intended for testing purposes to simulate source deactivation.
+     */
     fun clearSourceStatus() {
         _sourceSince.value = null
     }
@@ -263,6 +279,14 @@ class MessagesViewModel(
         _sendFlag.value = flag
     }
 
+    /**
+     * Retrieves the current state of the send flag.
+     *
+     * This function returns the current value of the backing property `_sendFlag`,
+     * indicating whether sending is currently enabled (`true`) or disabled (`false`).
+     *
+     * @return `true` if sending is enabled, `false` otherwise.
+     */
     fun getSendFlag(): Boolean {
         return _sendFlag.value
     }
@@ -280,6 +304,15 @@ class MessagesViewModel(
         _coordinates.value = Point3D(Triple(_position.value!!.latitude, _position.value!!.longitude, _position.value!!.altitude))
     }
 
+    /**
+     * Retrieves the current geographic location of the entity.
+     *
+     * This function returns the current value stored in the backing property `_position`,
+     * which represents the entity's location in terms of latitude and longitude.
+     * If no location is available, the function returns `null`.
+     *
+     * @return the current [Location] if available, or `null` otherwise.
+     */
     fun getLocation(): Location? {
         return _position.value
     }
@@ -818,6 +851,26 @@ class MessagesViewModel(
         externalScope.cancel()
     }
 
+    /**
+     * Logs the status of child jobs within [externalScope].
+     *
+     * This function retrieves the root [Job] from the [CoroutineContext] of [externalScope]
+     * and iterates over its child jobs, printing their state:
+     * - whether the job is active ([Job.isActive])
+     * - whether the job has been cancelled ([Job.isCancelled])
+     *
+     * If no root job is found or if the root job has no children, an appropriate message is printed.
+     *
+     * @param tag An optional string to include in the log for contextual identification.
+     *            Useful for distinguishing multiple invocations of `dumpJobs`.
+     *
+     * @sample
+     * ```
+     * dumpJobs("MyCoroutineTest")
+     * // Possible output:
+     * // [MyCoroutineTest] Job=StandaloneCoroutine{Active}@6f2b958c active=true cancelled=false
+     * ```
+     */
     fun dumpJobs(tag: String = "") {
         val rootJob: Job? = externalScope.coroutineContext[Job]
         if (rootJob == null) {
