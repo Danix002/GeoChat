@@ -61,7 +61,7 @@ class SimulatedChatStressTest {
             Triple(
                 messagesVM,
                 nearbyVM,
-                TestParams(0, 0, 0.0)
+                TestParams(0, 0, 0.0, 0)
             )
         }
     }
@@ -140,6 +140,7 @@ class SimulatedChatStressTest {
         devices.forEach { device ->
             val received = device.first.getCurrentListOfMessages()
             assertTrue(received.isNotEmpty())
+            Log.i("${device.second.deviceId}", "Received: ${received.size}")
             Log.i("${device.second.deviceId}", "Received: $received")
         }
 
