@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.api.neighboring
 import it.unibo.collektive.network.mqtt.MqttMailbox
+import it.unibo.collektive.networking.Mailbox
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +31,10 @@ import kotlin.uuid.Uuid
  */
 class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    providedScope: CoroutineScope? = null
+    providedScope: CoroutineScope? = null,
+    private val mailboxFactory: suspend (Uuid) -> Mailbox<Uuid> = { id ->
+        MqttMailbox(id, IP_HOST, dispatcher = dispatcher)
+    }
 ) : ViewModel() {
     val debugHandler = CoroutineExceptionHandler { ctx, ex ->
         println("Coroutine failed in $ctx: $ex")
@@ -92,7 +96,6 @@ class NearbyDevicesViewModel(
      */
     fun setOnlineStatus(flag: Boolean){
         this._online.value = flag
-
     }
 
     /**
@@ -110,7 +113,7 @@ class NearbyDevicesViewModel(
      *         the neighboring devices of the current local node.
      */
      private suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
-        Collektive(deviceId, MqttMailbox(deviceId, host = IP_HOST, dispatcher = dispatcher)) {
+        Collektive(deviceId, mailboxFactory(deviceId)) {
             neighboring(localId).neighbors.toSet()
         }
 
@@ -151,6 +154,26 @@ class NearbyDevicesViewModel(
         externalScope.cancel()
     }
 
+    /**
+     * Logs the status of child jobs within [externalScope].
+     *
+     * This function retrieves the root [Job] from the [CoroutineContext] of [externalScope]
+     * and iterates over its child jobs, printing their state:
+     * - whether the job is active ([Job.isActive])
+     * - whether the job has been cancelled ([Job.isCancelled])
+     *
+     * If no root job is found or if the root job has no children, an appropriate message is printed.
+     *
+     * @param tag An optional string to include in the log for contextual identification.
+     *            Useful for distinguishing multiple invocations of `dumpJobs`.
+     *
+     * @sample
+     * ```
+     * dumpJobs("MyCoroutineTest")
+     * // Possible output:
+     * // [MyCoroutineTest] Job=StandaloneCoroutine{Active}@6f2b958c active=true cancelled=false
+     * ```
+     */
     fun dumpJobs(tag: String = "") {
         val rootJob: Job? = externalScope.coroutineContext[Job]
         if (rootJob == null) {
