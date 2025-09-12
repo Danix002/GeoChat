@@ -129,6 +129,8 @@ class SpreadingTimeTest {
 
         val job = backgroundScope.launch(dispatcher) {
             messagesViewModel.programs.collect { programs ->
+                Log.i("Programs size", programs.size.toString())
+                Log.i("Programs value", programs.toString())
                 emissions.add(programs)
             }
         }

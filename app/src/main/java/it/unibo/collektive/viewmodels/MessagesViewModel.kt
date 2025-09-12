@@ -15,6 +15,7 @@ import it.unibo.collektive.model.Message
 import it.unibo.collektive.model.Params
 import it.unibo.collektive.viewmodels.utils.SystemTimeProvider
 import it.unibo.collektive.network.mqtt.MqttMailbox
+import it.unibo.collektive.networking.Mailbox
 import it.unibo.collektive.stdlib.fields.fold
 import it.unibo.collektive.stdlib.spreading.gradientCast
 import it.unibo.collektive.stdlib.spreading.multiGradientCast
@@ -63,6 +64,9 @@ class MessagesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     providedScope: CoroutineScope? = null,
     private val timeProvider: TimeProvider = SystemTimeProvider(),
+    private val mailboxFactory: suspend (Uuid) -> Mailbox<Uuid> = { id ->
+        MqttMailbox(id, IP_HOST, dispatcher = dispatcher)
+    }
 ) : ViewModel() {
     val debugHandler = CoroutineExceptionHandler { ctx, ex ->
         println("Coroutine failed in $ctx: $ex")
@@ -661,7 +665,7 @@ class MessagesViewModel(
         nearbyDevicesViewModel: NearbyDevicesViewModel,
         time: LocalDateTime
     ): Collektive<Uuid, Unit> =
-        Collektive(deviceId, MqttMailbox(deviceId, IP_HOST, dispatcher = dispatcher)) {
+        Collektive(deviceId, mailboxFactory(deviceId)) {
             val result = gradientCast(
                 source = isSender,
                 local = deviceId to Triple(distance, userName, message),

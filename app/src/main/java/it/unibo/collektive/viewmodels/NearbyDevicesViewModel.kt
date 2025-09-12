@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import it.unibo.collektive.Collektive
 import it.unibo.collektive.aggregate.api.neighboring
 import it.unibo.collektive.network.mqtt.MqttMailbox
+import it.unibo.collektive.networking.Mailbox
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -30,7 +31,10 @@ import kotlin.uuid.Uuid
  */
 class NearbyDevicesViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    providedScope: CoroutineScope? = null
+    providedScope: CoroutineScope? = null,
+    private val mailboxFactory: suspend (Uuid) -> Mailbox<Uuid> = { id ->
+        MqttMailbox(id, IP_HOST, dispatcher = dispatcher)
+    }
 ) : ViewModel() {
     val debugHandler = CoroutineExceptionHandler { ctx, ex ->
         println("Coroutine failed in $ctx: $ex")
@@ -92,7 +96,6 @@ class NearbyDevicesViewModel(
      */
     fun setOnlineStatus(flag: Boolean){
         this._online.value = flag
-
     }
 
     /**
@@ -110,7 +113,7 @@ class NearbyDevicesViewModel(
      *         the neighboring devices of the current local node.
      */
      private suspend fun collektiveProgram(): Collektive<Uuid, Set<Uuid>> =
-        Collektive(deviceId, MqttMailbox(deviceId, host = IP_HOST, dispatcher = dispatcher)) {
+        Collektive(deviceId, mailboxFactory(deviceId)) {
             neighboring(localId).neighbors.toSet()
         }
 

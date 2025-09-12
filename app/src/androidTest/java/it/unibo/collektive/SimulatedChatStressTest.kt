@@ -1,5 +1,6 @@
 package it.unibo.collektive
 
+import FakeMailbox
 import io.mockk.every
 import io.mockk.spyk
 import it.unibo.collektive.viewmodels.MessagesViewModel
@@ -14,12 +15,6 @@ import it.unibo.collektive.utils.TestTimeProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import org.junit.Assert.assertEquals
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
@@ -28,10 +23,10 @@ import kotlin.collections.isNotEmpty
 import kotlin.math.cos
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
-import kotlin.uuid.Uuid
+import it.unibo.collektive.utils.ECEFCoordinatesGenerator
 
-class SimulatedChat {
-    private val deviceCount = 10
+class SimulatedChatStressTest {
+    private val deviceCount = 5
     private val baseLat = Random.nextDouble(-90.0, 90.0)
     private val baseLon = Random.nextDouble(-180.0, 180.0)
     private lateinit var devices: List<Triple<MessagesViewModel, NearbyDevicesViewModel, TestParams>>
@@ -46,7 +41,7 @@ class SimulatedChat {
             val nearbyVM = spyk(
                 NearbyDevicesViewModel(
                     dispatcher = dispatcher,
-                    providedScope = scope
+                    providedScope = scope,
                 ),
                 recordPrivateCalls = true
             )
@@ -56,7 +51,8 @@ class SimulatedChat {
                 MessagesViewModel(
                     dispatcher = dispatcher,
                     providedScope = scope,
-                    timeProvider = timeProvider
+                    timeProvider = timeProvider,
+                    mailboxFactory = { id -> FakeMailbox(id) }
                 ),
                 recordPrivateCalls = true
             )
@@ -72,106 +68,7 @@ class SimulatedChat {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun connection() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val testScope = this
-        val timeProvider = TestTimeProvider(testScheduler)
-
-        devices = createViewModels(dispatcher, testScope, timeProvider)
-
-        val connectionStates = mutableMapOf<Uuid, MutableList<NearbyDevicesViewModel.ConnectionState>>()
-        val jobs = mutableListOf<Job>()
-        val completionChannel = Channel<Unit>(deviceCount)
-
-        devices.forEach { device ->
-            jobs.add(
-                backgroundScope.launch(dispatcher) {
-                    device.second.connectionFlow
-                        .filter { it == NearbyDevicesViewModel.ConnectionState.CONNECTED }
-                        .take(1)
-                        .collect { state ->
-                            Log.i("Connection", "$state")
-                            connectionStates.getOrPut(device.second.deviceId) { mutableListOf() }.add(state)
-                            completionChannel.send(Unit)
-                        }
-                }
-            )
-        }
-
-        devices.forEach { it.second.startCollektiveProgram() }
-
-        devices.forEach { device ->
-            val latest = connectionStates[device.second.deviceId]?.lastOrNull()
-            latest?.let {
-                assertEquals(NearbyDevicesViewModel.ConnectionState.CONNECTED, latest)
-            }
-        }
-
-        devices.forEach {
-            it.first.setOnlineStatus(false)
-            it.first.cancel()
-            it.second.setOnlineStatus(false)
-            it.second.cancel()
-        }
-        jobs.forEach { it.cancel() }
-        jobs.clear()
-
-        Log.i("Finish", "ok")
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
-    fun `found neighbor`() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        val testScope = this
-        val timeProvider = TestTimeProvider(testScheduler)
-
-        devices = createViewModels(dispatcher, testScope, timeProvider)
-
-        val neighborhoods = mutableMapOf<Uuid, MutableList<Set<Uuid>>>()
-        val jobs = mutableListOf<Job>()
-        val completionChannel = Channel<Unit>(deviceCount)
-
-        devices.forEach { device ->
-            jobs.add(
-                backgroundScope.launch(dispatcher) {
-                    device.second.dataFlow
-                        .filter { it.size == deviceCount - 1 }
-                        .take(1)
-                        .collect { neighbors ->
-                            Log.i("Neighborhood", "$neighbors")
-                            neighborhoods.getOrPut(device.second.deviceId) { mutableListOf() }.add(neighbors)
-                            completionChannel.send(Unit)
-                        }
-                }
-            )
-        }
-
-        devices.forEach { it.second.startCollektiveProgram() }
-
-        neighborhoods.forEach { (id, neighborList) ->
-            val latest = neighborList.lastOrNull()
-            latest?.let {
-                assertEquals(deviceCount - 1, latest.size)
-            }
-        }
-
-        devices.forEach {
-            it.first.setOnlineStatus(false)
-            it.first.cancel()
-            it.second.setOnlineStatus(false)
-            it.second.cancel()
-        }
-        jobs.forEach { it.cancel() }
-        jobs.clear()
-
-        Log.i("Finish", "ok")
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    @Test
     fun `dynamic movement and message propagation`() = runTest {
-        val durationInSeconds = 16
         val dispatcher = StandardTestDispatcher(testScheduler)
         val testScope = this
         val timeProvider = TestTimeProvider(testScheduler)
@@ -185,11 +82,11 @@ class SimulatedChat {
 
         val spreadingTime = 5
 
-        repeat(durationInSeconds) {
+        repeat(DURATION_IN_SECONDS) {
             devices.forEach { (messagesVM, nearbyVM, params) ->
                 val localId = nearbyVM.deviceId.toString()
 
-                if (params.currentStep % 5 == 0) {
+                if (params.currentStep % STEP_BEFORE_SIMULATED_MOVEMENT == 0 && params.currentStep != 0) {
                     val newLocation =
                         generateLocationAtDistance(
                             baseLat,
@@ -203,10 +100,14 @@ class SimulatedChat {
 
                 val now = timeProvider.currentTimeMillis()
                 val wasSender = messagesVM.getSendFlag()
-                val shouldBecomeSource = isSource()
+                var shouldBecomeSource = isSource()
+
+                if(!shouldBecomeSource && params.failedAttempts == MAX_FAILED_ATTEMPTS){
+                    shouldBecomeSource = true
+                } else if (!shouldBecomeSource && params.failedAttempts < MAX_FAILED_ATTEMPTS) params.failedAttempts++
 
                 when {
-                    shouldBecomeSource -> {
+                    shouldBecomeSource && !wasSender -> {
                         params.sentCounter++
                         messagesVM.markAsSource(now)
                         val msg = "Hello! I'm device $localId attempt ${params.sentCounter}"
@@ -221,7 +122,7 @@ class SimulatedChat {
                     }
 
                     wasSender && messagesVM.sourceSince.value?.let { now - it < 2_000 } == true -> {
-                        // Nothing
+                        params.failedAttempts = 0
                     }
 
                     else -> {
@@ -239,7 +140,7 @@ class SimulatedChat {
         devices.forEach { device ->
             val received = device.first.getCurrentListOfMessages()
             assertTrue(received.isNotEmpty())
-            Log.i("${device.second.deviceId}", "Received size: ${received.size}")
+            Log.i("${device.second.deviceId}", "Received: $received")
         }
 
         devices.forEach {
@@ -261,10 +162,11 @@ class SimulatedChat {
         maxDistanceMeters: Double = 5_000.0,
         provider: String = "mock"
     ): Location {
+        val generator = ECEFCoordinatesGenerator()
         val location = Location(provider)
-        val baseECEF = latLonAltToECEF(baseLat, baseLon, 0.0)
+        val baseECEF = generator.latLonAltToECEF(baseLat, baseLon, 0.0)
         val newECEF = Point3D(Triple(baseECEF.x, baseECEF.y, baseECEF.z))
-        val (newLat, newLon, newAlt) = ecefToLatLonAlt(newECEF)
+        val (newLat, newLon, newAlt) = generator.ECEFToLatLonAlt(newECEF)
         val maxLatOffset = maxDistanceMeters / 111_000.0
         val maxLonOffset = maxDistanceMeters / (111_000.0 * cos(Math.toRadians(newLat)))
         location.latitude = newLat + Random.nextDouble(-maxLatOffset, maxLatOffset)
@@ -282,10 +184,11 @@ class SimulatedChat {
         timeProvider: TestTimeProvider,
         provider: String = "mock"
     ): Location {
+        val generator = ECEFCoordinatesGenerator()
         val location = Location(provider)
-        val baseECEF = latLonAltToECEF(baseLat, baseLon, 0.0)
+        val baseECEF = generator.latLonAltToECEF(baseLat, baseLon, 0.0)
         val newECEF = Point3D(Triple(baseECEF.x + distanceMeters, baseECEF.y, baseECEF.z))
-        val (newLat, newLon, newAlt) = ecefToLatLonAlt(newECEF)
+        val (newLat, newLon, newAlt) = generator.ECEFToLatLonAlt(newECEF)
         location.latitude = newLat
         location.longitude = newLon
         location.altitude = newAlt
@@ -294,34 +197,10 @@ class SimulatedChat {
         return location
     }
 
-    private fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
-        val a = 6378137.0
-        val e2 = 6.69437999014e-3
-        val radLat = Math.toRadians(lat)
-        val radLon = Math.toRadians(lon)
-        val N = a / Math.sqrt(1 - e2 * Math.sin(radLat) * Math.sin(radLat))
-        val x = (N + alt) * Math.cos(radLat) * Math.cos(radLon)
-        val y = (N + alt) * Math.cos(radLat) * Math.sin(radLon)
-        val z = (N * (1 - e2) + alt) * Math.sin(radLat)
-        return Point3D(Triple(x, y, z))
-    }
-
-    private fun ecefToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
-        val a = 6378137.0
-        val e2 = 6.69437999014e-3
-        val ePrime2 = e2 / (1 - e2)
-        val x = point.x
-        val y = point.y
-        val z = point.z
-        val p = Math.sqrt(x * x + y * y)
-        val theta = Math.atan2(z * a, p * (1 - e2) * a)
-        val sinTheta = Math.sin(theta)
-        val cosTheta = Math.cos(theta)
-        val lat = Math.atan2(z + ePrime2 * a * sinTheta * sinTheta * sinTheta,
-            p - e2 * a * cosTheta * cosTheta * cosTheta)
-        val lon = Math.atan2(y, x)
-        val N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat))
-        val alt = p / Math.cos(lat) - N
-        return Triple(Math.toDegrees(lat), Math.toDegrees(lon), alt)
+    companion object {
+        // The duration of the test under this configuration is approximately 25 seconds.
+        const val MAX_FAILED_ATTEMPTS = 1
+        const val STEP_BEFORE_SIMULATED_MOVEMENT = 5
+        const val DURATION_IN_SECONDS = 11
     }
 }

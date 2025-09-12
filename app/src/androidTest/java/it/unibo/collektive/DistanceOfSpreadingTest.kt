@@ -1,5 +1,6 @@
 package it.unibo.collektive
 
+import FakeMailbox
 import android.location.Location
 import android.util.Log
 import io.mockk.every
@@ -27,6 +28,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
+import it.unibo.collektive.utils.ECEFCoordinatesGenerator
 
 class DistanceOfSpreadingTest {
     private val deviceCount = 5
@@ -46,7 +48,7 @@ class DistanceOfSpreadingTest {
             val nearbyVM = spyk(
                 NearbyDevicesViewModel(
                     dispatcher = dispatcher,
-                    providedScope = scope
+                    providedScope = scope,
                 ),
                 recordPrivateCalls = true
             )
@@ -56,7 +58,8 @@ class DistanceOfSpreadingTest {
                 MessagesViewModel(
                     dispatcher = dispatcher,
                     providedScope = scope,
-                    timeProvider = timeProvider
+                    timeProvider = timeProvider,
+                    mailboxFactory = { id -> FakeMailbox(id) }
                 ),
                 recordPrivateCalls = true
             )
@@ -125,7 +128,7 @@ class DistanceOfSpreadingTest {
                     expectedDistances[index],
                     received.first().distance
                 )
-            }
+            }?: error("No messages received by ${device.second.deviceId}")
         }
 
         devices.forEach { viewModels ->
@@ -209,46 +212,16 @@ class DistanceOfSpreadingTest {
         timeProvider: TestTimeProvider,
         provider: String = "mock"
     ): Location {
+        val generator = ECEFCoordinatesGenerator()
         val location = Location(provider)
-        val baseECEF = latLonAltToECEF(baseLat, baseLon, 0.0)
+        val baseECEF = generator.latLonAltToECEF(baseLat, baseLon, 0.0)
         val newECEF = Point3D(Triple(baseECEF.x + distanceMeters, baseECEF.y, baseECEF.z))
-        val (newLat, newLon, newAlt) = ecefToLatLonAlt(newECEF)
+        val (newLat, newLon, newAlt) = generator.ECEFToLatLonAlt(newECEF)
         location.latitude = newLat
         location.longitude = newLon
         location.altitude = newAlt
         location.accuracy = 1f
         location.time = timeProvider.currentTimeMillis()
         return location
-    }
-
-    private fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
-        val a = 6378137.0
-        val e2 = 6.69437999014e-3
-        val radLat = Math.toRadians(lat)
-        val radLon = Math.toRadians(lon)
-        val N = a / Math.sqrt(1 - e2 * Math.sin(radLat) * Math.sin(radLat))
-        val x = (N + alt) * Math.cos(radLat) * Math.cos(radLon)
-        val y = (N + alt) * Math.cos(radLat) * Math.sin(radLon)
-        val z = (N * (1 - e2) + alt) * Math.sin(radLat)
-        return Point3D(Triple(x, y, z))
-    }
-
-    private fun ecefToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
-        val a = 6378137.0
-        val e2 = 6.69437999014e-3
-        val ePrime2 = e2 / (1 - e2)
-        val x = point.x
-        val y = point.y
-        val z = point.z
-        val p = Math.sqrt(x * x + y * y)
-        val theta = Math.atan2(z * a, p * (1 - e2) * a)
-        val sinTheta = Math.sin(theta)
-        val cosTheta = Math.cos(theta)
-        val lat = Math.atan2(z + ePrime2 * a * sinTheta * sinTheta * sinTheta,
-            p - e2 * a * cosTheta * cosTheta * cosTheta)
-        val lon = Math.atan2(y, x)
-        val N = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat))
-        val alt = p / Math.cos(lat) - N
-        return Triple(Math.toDegrees(lat), Math.toDegrees(lon), alt)
     }
 }
