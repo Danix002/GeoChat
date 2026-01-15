@@ -296,16 +296,91 @@ class MessagesViewModel(
     }
 
     /**
-     * Updates the current geographic location of the device.
+     * Updates the current device location and normalizes coordinates using the ECEF reference system.
      *
-     * This function sets the internal state variable [_position] to the specified [location],
-     * which represents the current geographical coordinates (latitude, longitude, altitude).
+     * This function performs a coordinate transformation cycle:
+     * 1. It captures the raw geodetic location (Latitude, Longitude, Altitude).
+     * 2. It converts the geodetic data into the ECEF (Earth-Centered, Earth-Fixed) Cartesian system
+     * to ensure metric consistency.
+     * 3. It converts the ECEF coordinates back to geodetic format to populate the internal
+     * [_coordinates] state.
      *
-     * @param location the new [Location] object to be assigned, or `null` if no location is available.
+     * This normalization process is crucial for the Collektive engine to calculate accurate
+     * Euclidean distances in meters, avoiding spherical distortions.
+     *
+     * @param location The [Location] object provided by the system's location provider.
      */
     fun setLocation(location: Location?) {
-        _position.value = location
-        _coordinates.value = Point3D(Triple(_position.value!!.latitude, _position.value!!.longitude, _position.value!!.altitude))
+        location?.let {
+            _position.value = it
+            // Step 1: Forward transformation to ECEF
+            val ecefPoint = latLonAltToECEF(
+                it.latitude,
+                it.longitude,
+                it.altitude
+            )
+            // Step 2: Backward transformation to normalize Geodetic values
+            val (newLat, newLon, newAlt) = ECEFToLatLonAlt(
+                Point3D(Triple(ecefPoint.x, ecefPoint.y, ecefPoint.z))
+            )
+            // Step 3: Update the state used for spatial computation
+            _coordinates.value = Point3D(Triple(newLat, newLon, newAlt))
+        }
+    }
+
+    /**
+     * Transforms Geodetic coordinates (WGS84) into the ECEF Cartesian coordinate system.
+     *
+     * The transformation uses the standard WGS84 ellipsoid parameters:
+     * - Semi-major axis (a): 6,378,137.0 meters.
+     * - First eccentricity squared (e²): 6.69437999014e-3.
+     *
+     * This conversion maps a point on the Earth's surface to a 3D vector (X, Y, Z)
+     * measured in meters from the Earth's center of mass.
+     *
+     * @param lat Latitude in decimal degrees.
+     * @param lon Longitude in decimal degrees.
+     * @param alt Altitude in meters above the ellipsoid.
+     * @return A [Point3D] representing the ECEF coordinates.
+     */
+    private fun latLonAltToECEF(lat: Double, lon: Double, alt: Double): Point3D {
+        val a = 6378137.0
+        val e2 = 6.69437999014e-3
+        val radLat = Math.toRadians(lat)
+        val radLon = Math.toRadians(lon)
+        val n = a / Math.sqrt(1 - e2 * Math.sin(radLat) * Math.sin(radLat))
+        val x = (n + alt) * Math.cos(radLat) * Math.cos(radLon)
+        val y = (n + alt) * Math.cos(radLat) * Math.sin(radLon)
+        val z = (n * (1 - e2) + alt) * Math.sin(radLat)
+        return Point3D(Triple(x, y, z))
+    }
+
+    /**
+     * Transforms ECEF Cartesian coordinates back into Geodetic coordinates (Lat, Lon, Alt).
+     *
+     * This implementation uses Bowring's irrational method to accurately retrieve
+     * geodetic latitude, longitude, and altitude from a Cartesian vector.
+     *
+     * @param point The [Point3D] in ECEF coordinates (X, Y, Z in meters).
+     * @return A [Triple] containing Latitude (degrees), Longitude (degrees), and Altitude (meters).
+     */
+    private fun ECEFToLatLonAlt(point: Point3D): Triple<Double, Double, Double> {
+        val a = 6378137.0
+        val e2 = 6.69437999014e-3
+        val ePrime2 = e2 / (1 - e2)
+        val x = point.x
+        val y = point.y
+        val z = point.z
+        val p = Math.sqrt(x * x + y * y)
+        val theta = Math.atan2(z * a, p * (1 - e2) * a)
+        val lat = Math.atan2(
+            z + ePrime2 * a * Math.pow(Math.sin(theta), 3.0),
+            p - e2 * a * Math.pow(Math.cos(theta), 3.0)
+        )
+        val lon = Math.atan2(y, x)
+        val n = a / Math.sqrt(1 - e2 * Math.sin(lat) * Math.sin(lat))
+        val alt = p / Math.cos(lat) - n
+        return Triple(Math.toDegrees(lat), Math.toDegrees(lon), alt)
     }
 
     /**
