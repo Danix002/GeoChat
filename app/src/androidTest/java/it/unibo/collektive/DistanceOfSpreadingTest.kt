@@ -1,13 +1,12 @@
 package it.unibo.collektive
 
 import FakeMailbox
-import android.location.Location
 import android.util.Log
 import io.mockk.every
 import io.mockk.spyk
 import it.unibo.collektive.model.EnqueueMessage
 import it.unibo.collektive.model.Message
-import it.unibo.collektive.stdlib.util.Point3D
+import it.unibo.collektive.utils.CoordinatesGenerator
 import it.unibo.collektive.utils.TestTimeProvider
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
@@ -28,12 +27,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
-import it.unibo.collektive.utils.ECEFCoordinatesGenerator
 
 class DistanceOfSpreadingTest {
     private val deviceCount = 5
     private val baseLat = 45.0
     private val baseLon = 7.0
+    private val locationGenerator = CoordinatesGenerator()
     private val offsets = listOf(0.0, 100.0, 200.0, 300.0, 400.0)
     private lateinit var devices: List<Pair<MessagesViewModel, NearbyDevicesViewModel>>
     private val expectedDistances = listOf(71f, 141f, 211f, 281f)
@@ -44,7 +43,7 @@ class DistanceOfSpreadingTest {
         timeProvider: TestTimeProvider
     ): List<Pair<MessagesViewModel, NearbyDevicesViewModel>> {
         return List(deviceCount) { i ->
-            val mockLocation = generateLocationAtDistance(baseLat, baseLon, offsets[i], timeProvider)
+            val mockLocation = locationGenerator.generateLocationAtDistance(baseLat, baseLon, offsets[i], timeProvider)
             val nearbyVM = spyk(
                 NearbyDevicesViewModel(
                     dispatcher = dispatcher,
@@ -203,25 +202,5 @@ class DistanceOfSpreadingTest {
             viewModels.first.cancel()
         }
         jobs.forEach { it.cancel() }
-    }
-
-    private fun generateLocationAtDistance(
-        baseLat: Double,
-        baseLon: Double,
-        distanceMeters: Double,
-        timeProvider: TestTimeProvider,
-        provider: String = "mock"
-    ): Location {
-        val generator = ECEFCoordinatesGenerator()
-        val location = Location(provider)
-        val baseECEF = generator.latLonAltToECEF(baseLat, baseLon, 0.0)
-        val newECEF = Point3D(Triple(baseECEF.x + distanceMeters, baseECEF.y, baseECEF.z))
-        val (newLat, newLon, newAlt) = generator.ECEFToLatLonAlt(newECEF)
-        location.latitude = newLat
-        location.longitude = newLon
-        location.altitude = newAlt
-        location.accuracy = 1f
-        location.time = timeProvider.currentTimeMillis()
-        return location
     }
 }

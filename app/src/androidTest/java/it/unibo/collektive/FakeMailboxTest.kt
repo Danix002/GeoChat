@@ -1,12 +1,10 @@
 package it.unibo.collektive
 
 import FakeMailbox
-import android.location.Location
 import android.util.Log
 import io.mockk.every
 import io.mockk.spyk
-import it.unibo.collektive.stdlib.util.Point3D
-import it.unibo.collektive.utils.ECEFCoordinatesGenerator
+import it.unibo.collektive.utils.CoordinatesGenerator
 import it.unibo.collektive.utils.TestTimeProvider
 import it.unibo.collektive.viewmodels.MessagesViewModel
 import it.unibo.collektive.viewmodels.NearbyDevicesViewModel
@@ -24,6 +22,7 @@ import kotlin.time.Duration.Companion.seconds
 class FakeMailboxTest {
     private val baseLat = 45.0
     private val baseLon = 7.0
+    private val locationGenerator = CoordinatesGenerator()
     private val offsets: Map<String, Double> = mapOf("Alice" to 0.0, "Bob" to 100.0)
 
     private fun createViewModels(
@@ -33,7 +32,7 @@ class FakeMailboxTest {
         userName: String
     ): Pair<MessagesViewModel, NearbyDevicesViewModel> {
         val mockLocation = offsets[userName]?.let {
-            generateLocationAtDistance(
+            locationGenerator.generateLocationAtDistance(
                 baseLat,
                 baseLon,
                 it,
@@ -115,25 +114,5 @@ class FakeMailboxTest {
         deviceB.first.setOnlineStatus(false)
         deviceA.first.cancel()
         deviceB.first.cancel()
-    }
-
-    private fun generateLocationAtDistance(
-        baseLat: Double,
-        baseLon: Double,
-        distanceMeters: Double,
-        timeProvider: TestTimeProvider,
-        provider: String = "mock"
-    ): Location {
-        val generator = ECEFCoordinatesGenerator()
-        val location = Location(provider)
-        val baseECEF = generator.latLonAltToECEF(baseLat, baseLon, 0.0)
-        val newECEF = Point3D(Triple(baseECEF.x + distanceMeters, baseECEF.y, baseECEF.z))
-        val (newLat, newLon, newAlt) = generator.ECEFToLatLonAlt(newECEF)
-        location.latitude = newLat
-        location.longitude = newLon
-        location.altitude = newAlt
-        location.accuracy = 1f
-        location.time = timeProvider.currentTimeMillis()
-        return location
     }
 }
